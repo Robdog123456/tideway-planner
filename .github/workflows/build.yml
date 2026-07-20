@@ -1,0 +1,102 @@
+# build.yml — the entire backend.
+#
+# Every 6 hours (and on the Run-workflow button): pull tides/wind/flag,
+# prove the calibrated model still reproduces v1 exactly (--check), build
+# the 35-day grid, sanity-check it, commit the refreshed data, publish the
+# web/ folder to GitHub Pages.
+#
+# Failure semantics (the "unattended for a month" contract):
+#   - any step failing stops the run BEFORE deploy → the last good grid
+#     stays live, and GitHub emails Rob about the failed workflow;
+#   - tides are cached 35 days ahead in git, so even weeks of failed PLA
+#     fetches cannot break the app inside the horizon (wind degrades first,
+#     honestly, via tide-only slots);
+#   - the data commit each run doubles as the keepalive that stops GitHub
+#     disabling the schedule after 60 days of repo inactivity.
+
+name: build-grid
+
+on:
+  schedule:
+    - cron: "17 2,8,14,20 * * *"   # UTC; offset minute dodges cron congestion
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency: build-grid
+
+env:
+  TZ: Europe/London   # the model thinks in London wall-clock everywhere
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch tides (rolling 35 d, cache-aware)
+        working-directory: pipeline
+        run: python3 fetch_tides.py --live --days 35
+
+      - name: Fetch wind (14 d forecast + 40-member ensemble)
+        working-directory: pipeline
+        run: python3 fetch_wind.py --live
+
+      - name: Fetch flag snapshot (EA Richmond — non-fatal)
+        working-directory: pipeline
+        run: python3 fetch_flag.py
+
+      - name: Regression gate — v1 lights must reproduce exactly
+        working-directory: pipeline
+        run: python3 compute_v2.py --check
+
+      - name: Build the 35-day grid
+        working-directory: pipeline
+        run: python3 compute_v2.py --days 35 --out ../web/data/grid_v2.json
+
+      - name: Sanity-check the grid
+        run: |
+          python3 - <<'EOF'
+          import json, datetime as dt
+          g = json.load(open("web/data/grid_v2.json"))
+          days = g["grid"]
+          assert len(days) >= 30, f"only {len(days)} days in grid"
+          gen = dt.datetime.fromisoformat(g["generated"])
+          assert dt.datetime.now() - gen < dt.timedelta(hours=1), "stale stamp"
+          today = dt.date.today().isoformat()
+          assert today in days and days[today], "today missing from grid"
+          with_wind = sum(1 for d in days.values() for r in d
+                          if r.get("wind_light"))
+          assert with_wind > 200, f"suspiciously little wind data ({with_wind})"
+          print(f"sanity OK: {len(days)} days, {with_wind} wind slots, "
+                f"generated {g['generated']}")
+          EOF
+
+      - name: Commit refreshed data (also the 60-day keepalive)
+        run: |
+          git config user.name "tideway-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add pipeline/data web/data/grid_v2.json
+          git diff --cached --quiet || git commit -m "data: grid refresh $(date -u +%FT%TZ)"
+          git push
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
