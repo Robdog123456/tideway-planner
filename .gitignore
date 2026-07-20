@@ -1,0 +1,15 @@
+# Personal / local-only data — NEVER committed (public repo).
+# Raw Strava GPS, outing manifest, per-pass derivations, historical PLA pulls,
+# and the PLA Tideway Code copy all live here; the backtest reads them via the
+# pipeline/raw and pipeline/passes.csv symlinks below.
+local-data/
+
+# Symlinks into local-data (unchanged-code shims for the model scripts)
+pipeline/raw
+pipeline/passes.csv
+
+# Python / editor noise
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
