@@ -8,6 +8,12 @@ local-data/
 pipeline/raw
 pipeline/passes.csv
 
+# Live wind is refetched fresh every pipeline run (no cache value — a failed
+# fetch fails the run and the last published grid stays live), so its ~1 MB
+# per cycle never enters git history. Tides + flag.json ARE committed: tides
+# are the month-long resilience cache, flag.json is the keep-previous fallback.
+pipeline/data/wind/
+
 # Python / editor noise
 __pycache__/
 *.pyc
