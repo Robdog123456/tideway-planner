@@ -29,7 +29,8 @@ import math
 from datetime import datetime, timedelta
 
 from tideway_lib import (load_listing, find_extrema, to_putney,
-                         load_wind, wind_at, ang_diff, bearing_deg)
+                         load_wind, wind_at, ang_diff, bearing_deg,
+                         HW_AMBER_M, HW_RED_M)
 
 
 def fast_wind_at(series_and_index, dt):
@@ -48,9 +49,8 @@ def fast_wind_at(series_and_index, dt):
     return s0 + (s1 - s0) * f, g0 + (g1 - g0) * f, (d0 if f < 0.5 else d1)
 
 # tuned/empirical parameters (see backtest-report.md)
+# (HW_AMBER_M / HW_RED_M now come from tideway_lib — one source of truth)
 V_ROB = 3.3               # m/s through-the-water default (median session V)
-HW_AMBER_M = 5.90         # Putney: parts of the road may flood
-HW_RED_M = 6.30           # Putney: above max Rob has ever boated (6.25 m)
 WIND_GREEN, WIND_AMBER, GUST_RED = 8, 13, 32
 WOT_MIN_SPD, WOT_ANGLE = 6, 50
 STREAM_MIN_MPS = 0.15     # stream counted as "running" for WoT

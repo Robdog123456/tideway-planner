@@ -31,7 +31,8 @@ import os
 from datetime import datetime, timedelta, date
 
 from tideway_lib import (load_listing, find_extrema, to_putney,
-                         load_wind, wind_at, ang_diff)
+                         load_wind, wind_at, ang_diff,
+                         HW_AMBER_M, HW_RED_M)
 
 # ------------------------------------------------------------- configuration
 # v1 calibrated values — DO NOT CHANGE without re-running the backtest.
@@ -44,8 +45,8 @@ WOT_MIN_SPD = 6       # wind-over-tide flagged from this sustained speed
 WOT_ANGLE = 50        # deg from stream to-heading counted as opposing
 STREAM_RUNNING_MIN = 45   # minutes clear of the turn = stream running
 
-# NEW v2 gate — Putney Embankment covering (launch/landing only)
-HW_GATE_PUTNEY_M = 5.85   # predicted Putney height (m CD) that covers the hard
+# v2 gate — Putney Embankment covering (launch/landing only): two-tier
+# HW_AMBER_M / HW_RED_M imported from tideway_lib (confirmed by Rob 2026-07-20)
 LAT, LNG = 51.467, -0.216
 
 SLOT_START = 4 * 60 + 30   # 04:30
@@ -141,7 +142,12 @@ def hm(mins):
 
 
 def slot_row(dt, pev, wind, srise, sset):
-    """One 30-min slot, v1 logic verbatim + the v2 HW gate fields."""
+    """One 30-min slot, v1 logic verbatim + the v2 two-tier HW gate.
+
+    wind=None means the slot lies BEYOND the wind forecast horizon: the row
+    is emitted tide-only (wind fields null, no overall verdict) so the month
+    view can show tides honestly without ever pretending to know the wind.
+    """
     prev, nxt = brackets(pev, dt)
     if not prev or not nxt:
         return None
@@ -165,36 +171,49 @@ def slot_row(dt, pev, wind, srise, sset):
     if key_to_turn <= 25:
         status = "High water (slack)" if nearest[2] == "HW" else "Low water (slack)"
 
-    spd, gust, wdir = wind_at(wind, dt)
-    stream_running = key_to_turn > STREAM_RUNNING_MIN
-    cur_to = FLOOD_TO if flooding else EBB_TO
-    wot = stream_running and spd >= WOT_MIN_SPD and ang_diff(wdir, cur_to) <= WOT_ANGLE
-    windl = "GREEN" if spd <= WIND_GREEN else ("AMBER" if spd <= WIND_AMBER else "RED")
-    if gust >= GUST_RED:
-        windl = "RED"
-    if wot and spd >= WIND_AMBER and windl == "AMBER":
-        windl = "RED"
+    # ---- embankment gate, two-tier (launch/landing only — not a rowing light)
+    hw_gate = "RED" if h >= HW_RED_M else ("AMBER" if h >= HW_AMBER_M else None)
 
-    # ---- NEW: embankment gate (launch/landing only — not a rowing light)
-    hw_gate = h >= HW_GATE_PUTNEY_M
-
-    if tide == "RED" or windl == "RED":
-        overall = "Don't row"
-    elif tide == "AMBER" or windl == "AMBER":
-        overall = "Caution"
+    if wind is None:
+        # beyond the forecast horizon: tides are knowable, wind is not
+        spd = gust = wdir = None
+        wot = False
+        windl = None
+        overall = None
     else:
-        overall = "ROW"
-    if hw_gate and overall != "Don't row":
-        overall = "No launch (embankment)"   # afloat is fine; boating isn't
+        spd, gust, wdir = wind_at(wind, dt)
+        stream_running = key_to_turn > STREAM_RUNNING_MIN
+        cur_to = FLOOD_TO if flooding else EBB_TO
+        wot = stream_running and spd >= WOT_MIN_SPD and ang_diff(wdir, cur_to) <= WOT_ANGLE
+        windl = "GREEN" if spd <= WIND_GREEN else ("AMBER" if spd <= WIND_AMBER else "RED")
+        if gust >= GUST_RED:
+            windl = "RED"
+        if wot and spd >= WIND_AMBER and windl == "AMBER":
+            windl = "RED"
+
+        if tide == "RED" or windl == "RED":
+            overall = "Don't row"
+        elif tide == "AMBER" or windl == "AMBER":
+            overall = "Caution"
+        else:
+            overall = "ROW"
+        # gate tiers mirror the session simulator: RED blocks boating,
+        # AMBER only worsens a clean verdict to Caution (wet feet, not danger)
+        if hw_gate == "RED" and overall != "Don't row":
+            overall = "No launch (embankment)"   # afloat is fine; boating isn't
+        elif hw_gate == "AMBER" and overall == "ROW":
+            overall = "Caution"
 
     notes = []
     if tide == "RED":
         notes.append("low water - do not boat (black-flag rule)")
-    if hw_gate:
+    if hw_gate == "RED":
         notes.append(f"embankment covered (~{h:.1f} m Putney) - no launching/landing")
+    elif hw_gate == "AMBER":
+        notes.append(f"embankment may flood (~{h:.1f} m Putney) - time the launch, wet feet")
     if wot:
         notes.append("wind against tide")
-    if gust >= 25:
+    if gust is not None and gust >= 25:
         notes.append(f"gusty ({gust:.0f} mph)")
     slot_min = dt.hour * 60 + dt.minute
     if slot_min < srise:
@@ -202,16 +221,20 @@ def slot_row(dt, pev, wind, srise, sset):
     if slot_min > sset:
         notes.append("after sunset (dark)")
 
-    return {
+    row = {
         "time": dt.strftime("%H:%M"),
         "height_putney_m": round(h, 2),
         "tide_status": status, "flooding": flooding,
-        "wind_mph": round(spd), "gust_mph": round(gust),
-        "wind_dir": int(wdir),
+        "wind_mph": None if spd is None else round(spd),
+        "gust_mph": None if gust is None else round(gust),
+        "wind_dir": None if wdir is None else int(wdir),
         "wind_over_tide": wot, "hw_gate": hw_gate,
         "tide_light": tide, "wind_light": windl, "overall": overall,
         "notes": "; ".join(notes),
     }
+    if wind is None:
+        row["tide_only"] = True
+    return row
 
 
 # ------------------------------------------------------------- confidence
@@ -262,10 +285,14 @@ def build(start, days, wind_file=None, with_sessions=True):
         rows = []
         for slot in range(SLOT_START, SLOT_END + 1, SLOT_STEP):
             dt = datetime(d.year, d.month, d.day, slot // 60, slot % 60)
-            if wind_end and dt > wind_end:
-                break   # honest horizon: tide-only beyond wind data
-            row = slot_row(dt, pev, wind, srise, sset)
+            # honest horizon: beyond the wind data the slot is tide-only —
+            # no wind fields, no verdict, no session simulation
+            beyond_wind = wind_end is None or dt > wind_end
+            row = slot_row(dt, pev, None if beyond_wind else wind, srise, sset)
             if row is None:
+                continue
+            if beyond_wind:
+                rows.append(row)
                 continue
             conf = window_confidence(ens, dt, dt + timedelta(minutes=90))
             if conf:
@@ -309,9 +336,18 @@ def build(start, days, wind_file=None, with_sessions=True):
                 prev = v
         grid[d.isoformat()] = rows
 
+    # flag snapshot (fetch_flag.py) — offline fallback for the PWA's live panel
+    flag = None
+    if os.path.exists("data/flag.json"):
+        with open("data/flag.json") as f:
+            flag = json.load(f)
+
     return {"generated": datetime.now().isoformat(timespec="seconds"),
-            "model": "v2-layer1",
-            "hw_gate_putney_m": HW_GATE_PUTNEY_M,
+            "model": "v2",
+            "hw_gate_putney_m": {"amber": HW_AMBER_M, "red": HW_RED_M},
+            "wind_horizon": wind_end.isoformat(timespec="minutes")
+                            if wind_end else None,
+            "flag": flag,
             "grid": grid, "putney_hwlw": hwlw}
 
 
@@ -348,7 +384,8 @@ def check():
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", type=str, default=None)
-    ap.add_argument("--days", type=int, default=7)
+    ap.add_argument("--days", type=int, default=35)
+    ap.add_argument("--out", type=str, default="grid_v2.json")
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
     if a.check:
@@ -356,7 +393,10 @@ if __name__ == "__main__":
         raise SystemExit(0 if ok else 1)
     start = date.fromisoformat(a.start) if a.start else date.today()
     out = build(start, a.days)
-    with open("grid_v2.json", "w") as f:
-        json.dump(out, f, indent=1)
+    with open(a.out, "w") as f:
+        json.dump(out, f, separators=(",", ":"))   # minified — jq to inspect
     ndays = len([k for k, v in out["grid"].items() if v])
-    print(f"grid_v2.json written: {ndays} days with data from {start}")
+    tide_only = sum(1 for v in out["grid"].values() for r in v
+                    if r.get("tide_only"))
+    print(f"{a.out} written: {ndays} days from {start}, "
+          f"{tide_only} tide-only slots beyond the wind horizon")

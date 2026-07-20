@@ -29,6 +29,17 @@ GAUGES = {"london_bridge": "0113", "chelsea": "0113A", "richmond": "0116"}
 PUTNEY_HW = (31, -1.0)   # minutes, metres
 PUTNEY_LW = (98, -0.5)
 
+# Putney Embankment high-water gate (launch/landing only — being afloat
+# through HW is unaffected). Metres above chart datum AT PUTNEY.
+# Two-tier, confirmed by Rob 2026-07-20:
+#   AMBER >= 5.90 — parts of the Embankment road may flood around HW on big
+#                   springs (~HW +-15-40 min): time the launch, wet feet.
+#   RED   >= 6.30 — above anything Rob has ever boated (empirical max 6.25).
+# Shared here so compute_v2 (slot grid) and session_model (simulator) can
+# never disagree about the thresholds.
+HW_AMBER_M = 5.90
+HW_RED_M = 6.30
+
 LRC = (51.4688, -0.2193)  # London Rowing Club, Putney Embankment
 
 
