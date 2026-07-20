@@ -114,13 +114,15 @@ def stream_at(curves, reach, phase):
 def load_events_and_wind():
     paths = [p for p in
              glob.glob("raw/tides/lb_*.json") + glob.glob("../lb_days/lb_*.json")
+             + glob.glob("data/tides/lb_*.json")
              if "fresh" not in p and "test" not in p]
     pev = to_putney(find_extrema(load_listing(paths)))
     wind = {}
     for pt in ("putney", "barnes"):
         series = {}
         for src in (f"raw/wind/archive_{pt}.json", f"raw/wind/recent_{pt}.json",
-                    f"raw/wind/forecast_{pt}.json"):
+                    f"raw/wind/forecast_{pt}.json",
+                    f"data/wind/forecast_{pt}.json"):  # live file last = wins
             try:
                 for w in load_wind(src):
                     series[w[0]] = w

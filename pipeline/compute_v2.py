@@ -55,8 +55,11 @@ SLOT_STEP = 30
 
 # ------------------------------------------------------------------- loading
 def load_tides():
+    # raw/ + ../lb_days = historical (backtest, local only);
+    # data/ = the rolling live cache the scheduled pipeline maintains.
     paths = [p for p in
              glob.glob("raw/tides/lb_*.json") + glob.glob("../lb_days/lb_*.json")
+             + glob.glob("data/tides/lb_*.json")
              if "fresh" not in p and "test" not in p]
     series = load_listing(paths)
     extrema = find_extrema(series)
@@ -68,7 +71,8 @@ def load_wind_series(wind_file=None):
         return load_wind(wind_file)
     series = {}
     for src in ("raw/wind/archive_putney.json", "raw/wind/recent_putney.json",
-                "raw/wind/forecast_putney.json"):
+                "raw/wind/forecast_putney.json",
+                "data/wind/forecast_putney.json"):   # live file loads last = wins
         if os.path.exists(src):
             for w in load_wind(src):
                 series[w[0]] = w      # later files overwrite (forecast freshest)
@@ -76,8 +80,10 @@ def load_wind_series(wind_file=None):
 
 
 def load_ensemble():
-    """[(dt, [member speeds])] or None."""
-    path = "raw/wind/ensemble_putney.json"
+    """[(dt, [member speeds])] or None. Live cache preferred over historical."""
+    path = ("data/wind/ensemble_putney.json"
+            if os.path.exists("data/wind/ensemble_putney.json")
+            else "raw/wind/ensemble_putney.json")
     if not os.path.exists(path):
         return None
     with open(path) as f:
