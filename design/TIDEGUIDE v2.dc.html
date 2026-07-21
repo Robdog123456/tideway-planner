@@ -38,7 +38,7 @@ STORAGE: localStorage "tideguide_grid_v2" (read+write: last good grid; deliberat
 TIMERS: setInterval 20s — re-render tick for now-line/hero countdowns (no network); visibilitychange re-render; no polling
 FIELDS READ: generated, wind_horizon, grid.<date>[]: time, height_putney_m, tide_status, tide_light, wind_light, overall, wind_mph, gust_mph, wind_dir, wind_over_tide, hw_gate, notes, tide_only, day_deteriorates_at, confidence_90min.p_rowable, best_turn, sessions.<turn>.{verdict,duration_min,worst_reach}; putney_hwlw.<date>[].{type,time,height_m}; flag.{fetched,current.flag,latest.level_m,latest.time,next.flag_estimate,next.at}
 FIELDS IGNORED: model; hw_gate_putney_m (5.90/6.30 thresholds restated in INFO copy, not read); flag.current.min_12h_m; flag.next.trailing_min_m
-CHANGELOG: WEEK tab -> MONTH (all 35 days); inline week data -> fetch data/grid_v2.json + localStorage offline fallback + offline/stale(>13h)/date-out-of-range banners; new "HOW FAR CAN I GO" sessions panel (per-turn chips, best_turn, worst reach); hw_gate -> NO LAUNCH verdict + gate row-notes (deduped vs pipeline notes); tide-only days: dimmed tide-light rendering, no faked verdicts, RED-gate slots excluded from tide windows; confidence % on chips/month/sessions; EBB-TIDE FLAG card (live EA compute w/ 06:00/18:00 setting rule, JSON snapshot fallback, PLA link); INFO rewritten for v2 model; props demoDate/demoTime/showNotes; PWA head (manifest.webmanifest, sw.js register in export build)
+CHANGELOG: WEEK tab -> MONTH (all 35 days); inline week data -> fetch data/grid_v2.json + localStorage offline fallback + offline/stale(>13h)/date-out-of-range banners; new "HOW FAR CAN I GO" sessions panel (per-turn chips, best_turn, worst reach); hw_gate -> NO LAUNCH verdict + gate row-notes (deduped vs pipeline notes); tide-only days: dimmed tide-light rendering, no faked verdicts, RED-gate slots excluded from tide windows; confidence % on chips/month/sessions; EBB-TIDE FLAG card (live EA compute w/ 06:00/18:00 setting rule, JSON snapshot fallback, PLA link); INFO rewritten for v2 model; props demoDate/demoTime/showNotes; PWA head (manifest.webmanifest, sw.js register in export build); slot-table rows with sessions are tappable — selects that slot as launch time for HOW FAR CAN I GO (header LAUNCHING hh:mm + white ✕ to clear, selected row: white .07 tint + 2px inset left edge; tap again / day change / tab switch / month-row tap clears; tide-only rows inert)
 LIMITATIONS: AMBER hw_gate styling untested — no AMBER slot in attached grid; sw.js/manifest only meaningful in deployed export (TIDEGUIDE.html + sw.js + data/ side by side), DC preview skips sw; gate thresholds + "~14 days" horizon wording hardcoded in INFO copy rather than derived from hw_gate_putney_m/wind_horizon
 -->
 <div style="position:fixed;top:0;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;background:linear-gradient(180deg,#24282D 0%,#101214 38%,#0A0B0D 100%);font-family:'Barlow',sans-serif;color:#FFFFFF" onTouchStart="{{onTS}}" onTouchEnd="{{onTE}}">
@@ -135,7 +135,7 @@ LIMITATIONS: AMBER hw_gate styling untested — no AMBER slot in attached grid; 
     <div style="margin:16px 18px 0;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
         <span style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">HOW FAR CAN I GO</span>
-        <span style="color:#5F6B73;font-size:9px;font-weight:600;letter-spacing:1.2px;white-space:nowrap">{{sess.when}}</span>
+        <span onClick="{{sess.onClear}}" style="cursor:{{sess.whenCursor}};color:{{sess.whenC}};font-size:9px;font-weight:600;letter-spacing:1.2px;white-space:nowrap">{{sess.when}}{{sess.clearHint}}</span>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:11px">
         <sc-for list="{{sess.turns}}" as="c" hint-placeholder-count="5">
@@ -162,7 +162,7 @@ LIMITATIONS: AMBER hw_gate styling untested — no AMBER slot in attached grid; 
         <div onClick="{{tbl.onToggle}}" style="cursor:pointer;padding:9px 18px;font-size:10.5px;font-weight:500;letter-spacing:1px;color:#5F6B73;border-top:1px solid rgba(255,255,255,.07)">{{tbl.toggleText}}</div>
       </sc-if>
       <sc-for list="{{tbl.rows}}" as="r" hint-placeholder-count="8">
-        <div style="border-top:1px solid rgba(255,255,255,.06);background:{{r.tint}};padding:7px 18px;display:grid;grid-template-columns:50px 92px 1fr 80px;align-items:center;opacity:{{r.op}}">
+        <div onClick="{{r.onTap}}" style="cursor:{{r.cursor}};border-top:1px solid rgba(255,255,255,.06);background:{{r.tint}};box-shadow:{{r.edge}};padding:7px 18px;display:grid;grid-template-columns:50px 92px 1fr 80px;align-items:center;opacity:{{r.op}}">
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:600;color:{{r.tCol}}">{{r.t}}</span>
           <span style="display:flex;align-items:baseline;gap:5px;white-space:nowrap"><span style="font-size:13px;font-weight:500;color:#D6DDE2">{{r.h}}</span><span style="font-size:9px;font-weight:600;letter-spacing:.6px;color:{{r.tlC}}">{{r.gl}} {{r.pwU}}</span></span>
           <sc-if value="{{r.hasWind}}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="-6.5 -6.5 13 13" style="flex:none"><path d="M0,-4.6 L0,4.6 M-2.9,-1.4 L0,-4.6 L2.9,-1.4" stroke="{{r.wlC}}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="rotate({{r.rot}})"></path></svg><span style="font-size:13px;font-weight:500;color:#D6DDE2;white-space:nowrap">{{r.mph}}<span style="color:#5F6B73;font-size:9.5px;font-weight:600;letter-spacing:.5px"> {{r.dir}} · G{{r.gust}}</span></span></span></sc-if>
@@ -273,7 +273,7 @@ LIMITATIONS: AMBER hw_gate styling untested — no AMBER slot in attached grid; 
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 390, &quot;height&quot;: 844}, &quot;demoDate&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Demo&quot;}, &quot;demoTime&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Demo&quot;}, &quot;showNotes&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Table&quot;}}">
 class Component extends DCLogic {
-  state = { ready: false, loadFail: false, offline: false, dayIdx: null, view: 'today', earlierOpen: false, tick: 0 };
+  state = { ready: false, loadFail: false, offline: false, dayIdx: null, view: 'today', earlierOpen: false, tick: 0, selSlot: null };
 
   async componentDidMount() {
     let data = null, offline = false;
@@ -426,7 +426,7 @@ class Component extends DCLogic {
     const n = this.nowInfo();
     const cur = this.state.dayIdx ?? this.initialIdx(n);
     const nx = Math.max(0, Math.min(this.days.length - 1, cur + dir));
-    if (nx !== cur) this.setState({ dayIdx: nx, earlierOpen: false });
+    if (nx !== cur) this.setState({ dayIdx: nx, earlierOpen: false, selSlot: null });
   }
   initialIdx(n) {
     if (n.stale) return 0;
@@ -592,14 +592,18 @@ class Component extends DCLogic {
 
     // ---------- sessions ----------
     const slotAt = t => slots.findIndex(s => s.t === t);
+    const selSlot = this.state.selSlot;
+    const selIdx = selSlot != null ? slotAt(selSlot) : -1;
+    const selected = selIdx >= 0 && slots[selIdx].sessions ? selIdx : -1;
     let refIdx = -1;
-    if (isLive) refIdx = curIdx;
+    if (selected >= 0) refIdx = selected;
+    else if (isLive) refIdx = curIdx;
     else if (!day.tideOnly && day.rowable.length) refIdx = slotAt(day.rowable[0][0]);
     const ref = refIdx >= 0 ? slots[refIdx] : null;
     const sess = { show: false };
     if (ref && ref.sessions) {
       sess.show = true;
-      sess.when = isLive ? 'LAUNCHING NOW · ' + tstr(n.nowMin) : 'LAUNCHING ' + ref.t;
+      sess.when = (selected < 0 && isLive) ? 'LAUNCHING NOW · ' + tstr(n.nowMin) : 'LAUNCHING ' + ref.t;
       const ORDER = ['Hammersmith', 'Corney', 'ULBC', 'Chiswick Br', 'Kew'];
       const svcol = v => v === 'Row' ? G : v === 'Row (care)' ? Y : R;
       sess.turns = ORDER.filter(k => ref.sessions[k]).map(k => {
@@ -620,6 +624,11 @@ class Component extends DCLogic {
       const worst = ORDER.map(k => ref.sessions[k]).find(s2 => s2 && s2.worst_reach && s2.verdict !== 'Row');
       if (worst) { sess.worstShow = true; sess.worstT = 'WORST REACH — ' + String(worst.worst_reach).toUpperCase().replace(/_/g, ' '); }
       if (ref.conf) { sess.when += ' · ' + pct(ref.conf.p_rowable) + ' CONF'; }
+      sess.pinned = selected >= 0;
+      sess.whenC = sess.pinned ? '#FFFFFF' : '#5F6B73';
+      sess.clearHint = sess.pinned ? '  ✕' : '';
+      sess.whenCursor = sess.pinned ? 'pointer' : 'default';
+      sess.onClear = sess.pinned ? (() => this.setState({ selSlot: null })) : (() => {});
     }
 
     // ---------- chips ----------
@@ -642,6 +651,8 @@ class Component extends DCLogic {
     // ---------- table ----------
     const showNotes = this.props.showNotes ?? true;
     const mkRow = s => {
+      const isSel = selected >= 0 && slots[selected].t === s.t;
+      const selectable = !!s.sessions;
       const gateNote = (s.gate && !/embank/i.test(s.note)) ? ('HW gate ' + s.gate + ' — ' + (s.gate === 'RED' ? 'embankment flooded: no launching or landing' : 'embankment may flood: time the launch, wet feet')) : '';
       const note = [gateNote, s.note].filter(Boolean).join('; ');
       return {
@@ -656,8 +667,11 @@ class Component extends DCLogic {
         vW: s.tideOnly ? 'TIDE ONLY' : s.verdict === 'row' ? 'ROW' : s.verdict === 'care' ? 'CARE' : s.verdict === 'nolaunch' ? 'NO LAUNCH' : 'DON’T',
         vC: s.tideOnly ? DIM : vcol(s.verdict),
         vDot: s.tideOnly ? 'rgba(255,255,255,.14)' : vcol(s.verdict),
-        tint: s.tideOnly ? 'transparent' : s.verdict === 'row' ? 'rgba(66,227,77,.04)' : s.verdict === 'care' ? 'rgba(248,200,28,.04)' : 'rgba(255,59,48,.05)',
+        tint: isSel ? 'rgba(255,255,255,.07)' : s.tideOnly ? 'transparent' : s.verdict === 'row' ? 'rgba(66,227,77,.04)' : s.verdict === 'care' ? 'rgba(248,200,28,.04)' : 'rgba(255,59,48,.05)',
         op: s.tideOnly ? .55 : 1,
+        edge: isSel ? 'inset 2px 0 0 #FFFFFF' : 'none',
+        cursor: selectable ? 'pointer' : 'default',
+        onTap: selectable ? (() => this.setState(st => ({ selSlot: st.selSlot === s.t ? null : s.t }))) : (() => {}),
         note, showNote: !!note && showNotes
       };
     };
@@ -711,7 +725,7 @@ class Component extends DCLogic {
       best: (d.best ? 'BEST ' + d.best : '—') + (d.conf != null ? ' · ' + pct(d.conf) : ''),
       idealC: d.tideOnly ? '#5F868D' : G,
       idealTxt: d.tideOnly ? (d.rowable.length ? 'TIDE ' + d.rowable.map(w => w[0] + '–' + w[1]).join(' · ') : '') : (d.ideal.length ? 'IDEAL ' + d.ideal[0][0] + '–' + d.ideal[0][1] : ''),
-      onTap: () => this.setState({ dayIdx: i, view: 'today', earlierOpen: false })
+      onTap: () => this.setState({ dayIdx: i, view: 'today', earlierOpen: false, selSlot: null })
     }));
 
     // ---------- chrome ----------
@@ -730,14 +744,14 @@ class Component extends DCLogic {
       dayName: day.weekday.toUpperCase() + (day.tideOnly ? ' · TIDE ONLY' : ''),
       prevC: idx > 0 ? '#98A2AB' : '#2E353A', nextC: idx < days.length - 1 ? '#98A2AB' : '#2E353A',
       onPrev: () => this.stepDay(-1), onNext: () => this.stepDay(1),
-      onPill: () => this.setState({ view: 'month' }),
+      onPill: () => this.setState({ view: 'month', selSlot: null }),
       isToday: view === 'today', isMonth: view === 'month', isInfo: view === 'info',
       tabTodayC: view === 'today' ? '#FFFFFF' : '#5F6B73', tabTodayB: view === 'today' ? '2px solid #FFFFFF' : '2px solid transparent',
       tabMonthC: view === 'month' ? '#FFFFFF' : '#5F6B73', tabMonthB: view === 'month' ? '2px solid #FFFFFF' : '2px solid transparent',
       tabInfoC: view === 'info' ? '#FFFFFF' : '#5F6B73', tabInfoB: view === 'info' ? '2px solid #FFFFFF' : '2px solid transparent',
-      onTabToday: () => this.setState({ view: 'today' }),
-      onTabMonth: () => this.setState({ view: 'month' }),
-      onTabInfo: () => this.setState({ view: 'info' }),
+      onTabToday: () => this.setState({ view: 'today', selSlot: null }),
+      onTabMonth: () => this.setState({ view: 'month', selSlot: null }),
+      onTabInfo: () => this.setState({ view: 'info', selSlot: null }),
       bannerShow, bannerText,
       hero, ring, statsShow: isLive, statTideV, statTideC, statTideL, statWindV, statWindC, statWindL,
       hwlw: day.events.map(e => ({ ty: e.type, tyC: e.type === 'HW' ? '#F8C81C' : '#4FB3C9', t: e.time, h: e.h.toFixed(1) + ' m' })),

@@ -133,6 +133,38 @@ for every light and verdict; the app renders it.
 ---
 ---
 
+# FOLLOW-UP #1 (2026-07-21) — tap a slot to re-aim "HOW FAR CAN I GO"
+
+One interaction change to the Day view — everything else stays exactly as shipped.
+
+**Now:** the HOW FAR CAN I GO card is pinned to "LAUNCHING NOW" (live) or the
+day's first slot (04:30) on other days. That hides the story: on Fri 24 Jul the
+04:30 launch only clears Hammersmith, but a 09:00 launch is Row everywhere with
+best turn Kew — and the card never shows it.
+
+**Change:** tapping a row in the slot table selects that slot as the launch time:
+- The sessions card re-renders from THAT slot's `sessions` + `best_turn` +
+  `confidence_90min`, with the header label `LAUNCHING 09:00` (keep
+  `LAUNCHING NOW · HH:MM` only for the live default).
+- Selected row gets a clear but quiet highlight in the existing visual language
+  (hairline/tint — no new colors).
+- Tapping the selected row again, changing day, or switching tabs clears the
+  selection back to the default (live now / first slot).
+- Rows without `sessions` (tide-only slots) are not selectable — nothing happens.
+- The card may be off-screen when tapping a low row: your call on the affordance
+  (a subtle cue is fine; no forced scrolling).
+
+**Sanity check (attached grid, real data):** Fri 24 Jul — tap 04:30 → only
+HAMMERSMITH rowable (care), best turn HAMMERSMITH; tap 09:00 → all five turns
+Row, best turn KEW · 100%.
+
+**Delivery:** full re-export (the same self-contained bundle + sw.js + manifest
++ icon), with the handover-manifest comment updated (CHANGELOG gets this
+interaction; FIELDS READ unchanged) — same handover rules as before.
+
+---
+---
+
 # THE HANDOVER — paste this as the FINAL message once the design is settled
 # (Claude Code integrates the file into an existing PWA wrapper — service
 # worker, manifest, icons, GitHub Pages deploy — and runs acceptance tests
