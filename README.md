@@ -94,10 +94,23 @@ CI runs the `--check` half on every scheduled build.
 ```
 pipeline/    the model + fetchers (Python, stdlib). tideway_lib.py = shared core
   data/      rolling caches the pipeline commits (tides, flag)
-web/         the PWA (index.html, app.js, styles.css, sw.js, manifest, icons)
+web/         the PWA served by GitHub Pages
+  index.html   TIDEGUIDE v2 — the Claude Design bundle (self-contained: React +
+               fonts embedded; the only runtime external is the EA gauge API).
+               Don't hand-edit: change the design in Claude Design from
+               design/TIDEGUIDE v2.dc.html, re-export, re-run the handover.
+  sw.js, manifest.webmanifest, icon.png, icons/   PWA shell
+  data/grid_v2.json   the published grid (rebuilt every 6 h)
+  lite/        my plain-JS learning copy of the same app — readable, commented,
+               reads ../data/grid_v2.json; open web/lite/ to study how it works
+design/      the Claude Design handover: prototype (+support.js) and its README —
+             the full design spec, data contract and known gaps
 lb_days/     July 2026 reference tides — the --check regression window. Don't delete.
 grid.json, wind.json, compute.py   frozen v1 reference for --check. Don't edit.
 build_xlsx.py  on-demand Excel workbook (needs openpyxl; not in the pipeline)
 scripts/     backtest_local.sh — the pre-push gate
 local-data/  (gitignored) raw GPS + historical pulls; lives only on my Mac
 ```
+
+**Live:** https://robdog123456.github.io/tideway-planner/ · pipeline:
+https://github.com/Robdog123456/tideway-planner/actions
