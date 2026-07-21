@@ -1,0 +1,247 @@
+/* ============================================================
+   styles.css — the LOOKS. TIDEGUIDE's component language
+   (ring hero, tabs, slot table, telegraphic caps copy) in the
+   house palette: navy #0D1B2A · teal #1B7A8C · gold #F2A71B.
+   Flat design: no shadows — depth comes from hairline borders
+   and translucent tints only.
+   ============================================================ */
+
+:root{
+  --bg:#0D1B2A;            /* navy base */
+  --bg-top:#12263B;        /* slightly lighter wash at the top */
+  --bg-deep:#081220;       /* near-black at the bottom */
+  --panel:#132537;
+  --hairline:rgba(255,255,255,.08);
+  --hairline-strong:rgba(255,255,255,.18);
+  --text:#E8EEF2;
+  --sub:#C3CCD2;
+  --muted:#7D93A6;
+  --dim:#54677A;
+
+  /* traffic lights: dark fill + bright text variant (legible on navy) */
+  --green:#2E7D32;   --green-text:#52D869;
+  --amber:#F2A71B;   --amber-text:#F2A71B;
+  --red:#C62828;     --red-text:#F26B5E;
+  --gate:#1B7A8C;    --gate-text:#5BC6DA;   /* embankment gate = teal */
+
+  --curve:#4AA3DF;         /* tide line */
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+
+body{
+  background:linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 38%, var(--bg-deep) 100%) fixed;
+  color:var(--text);
+  font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+.app{
+  max-width:460px; margin:0 auto; min-height:100vh;
+  padding:calc(env(safe-area-inset-top) + 10px) 14px
+          calc(env(safe-area-inset-bottom) + 28px);
+}
+
+/* big condensed-look numerals (system font, tightened) */
+.num{ font-weight:800; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+
+/* uppercase micro-labels */
+.lbl{ font-size:9.5px; letter-spacing:2.2px; text-transform:uppercase; color:var(--muted); }
+
+/* ---------------- topbar ---------------- */
+.topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.logo{ width:26px; height:16px; }
+.daynav{
+  display:flex; align-items:center; gap:2px;
+  border:1px solid var(--hairline-strong); border-radius:999px; padding:4px 6px;
+}
+.daynav button{
+  background:none; border:0; color:var(--text); font-size:17px; line-height:1;
+  width:34px; height:26px; cursor:pointer; padding:0;
+}
+.daynav button:disabled{ color:#26343f; }
+.daynav .day{ font-size:12px; font-weight:700; letter-spacing:1.8px; min-width:86px; text-align:center; }
+.tz{ font-size:10px; letter-spacing:1.5px; color:var(--dim); width:26px; text-align:right; }
+
+/* ---------------- tabs ---------------- */
+.tabs{ display:flex; gap:22px; justify-content:center; margin:2px 0 14px; }
+.tabs button{
+  background:none; border:0; border-bottom:2px solid transparent; cursor:pointer;
+  color:var(--dim); font-size:11px; letter-spacing:2.2px; padding:6px 2px; font-weight:600;
+}
+.tabs button.active{ color:var(--text); border-bottom-color:var(--text); }
+
+/* ---------------- banners ---------------- */
+.banner{
+  border:1px solid rgba(242,167,27,.5); background:rgba(242,167,27,.08);
+  color:var(--amber-text); border-radius:10px; padding:9px 12px;
+  font-size:11.5px; letter-spacing:.4px; margin-bottom:12px; display:none;
+}
+.banner.show{ display:block; }
+
+/* ---------------- ring hero ---------------- */
+.hero{ position:relative; margin:0 0 6px; }
+.hero svg{ width:100%; height:auto; display:block; }
+.hero .center{
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center; pointer-events:none;
+}
+.hero .cap{ font-size:9.5px; letter-spacing:2.5px; color:var(--muted); margin-bottom:4px; text-transform:uppercase; }
+.hero .word{ font-weight:800; letter-spacing:2px; line-height:.95; }
+.hero .word.row{ color:var(--green-text); font-size:56px; }
+.hero .word.care{ color:var(--amber-text); font-size:56px; }
+.hero .word.dont{ color:var(--red-text); font-size:38px; }
+.hero .word.gate{ color:var(--gate-text); font-size:38px; }
+.hero .word.info{ color:var(--text); font-size:44px; }
+.hero .chip-care{
+  margin-top:6px; font-size:10px; letter-spacing:2px; color:var(--amber-text);
+  border:1px solid rgba(242,167,27,.5); border-radius:4px; padding:3px 8px;
+}
+.hero .status{ margin-top:8px; font-size:10.5px; font-weight:700; letter-spacing:1px; }
+.hero .status .g{ color:var(--green-text); }
+.hero .status .a{ color:var(--amber-text); }
+.hero .status .r{ color:var(--red-text); }
+.hero .status .m{ color:var(--muted); }
+
+/* ---------------- stat row ---------------- */
+.stats{ display:flex; margin:4px 0 16px; }
+.stat{ flex:1; text-align:center; padding:2px 0; }
+.stat + .stat{ border-left:1px solid rgba(255,255,255,.12); }
+.stat .v{ font-size:24px; }
+.stat .v.g{ color:var(--green-text); } .stat .v.a{ color:var(--amber-text); }
+.stat .v.r{ color:var(--red-text); }  .stat .v.m{ color:var(--muted); }
+.stat .v.black{ color:var(--text); }
+.stat .u{ font-size:11px; color:var(--muted); font-weight:600; }
+.stat .lbl{ margin-top:2px; }
+
+/* ---------------- panels ---------------- */
+.panel{
+  background:var(--panel); border:1px solid var(--hairline);
+  border-radius:10px; padding:12px 12px 13px; margin-bottom:12px;
+}
+.panel h3{ font-size:9.5px; letter-spacing:2.2px; color:var(--muted); font-weight:700; margin-bottom:10px; }
+.panel p{ font-size:12px; color:var(--sub); line-height:1.5; }
+.panel p + p{ margin-top:8px; }
+.panel .foot{ font-size:10px; color:var(--dim); margin-top:8px; }
+
+/* ---------------- session (how far) chips ---------------- */
+.turns{ display:flex; flex-wrap:wrap; gap:6px; }
+.turn{
+  border-radius:5px; padding:6px 9px; font-size:11px; font-weight:700;
+  letter-spacing:.8px; border:1px solid; background:transparent;
+}
+.turn small{ display:block; font-weight:600; font-size:9px; letter-spacing:.5px; margin-top:1px; opacity:.75; }
+.turn.row{ border-color:rgba(82,216,105,.35); color:var(--green-text); }
+.turn.care{ border-color:rgba(242,167,27,.4); color:var(--amber-text); }
+.turn.dont{ border-color:rgba(246,107,94,.35); color:var(--red-text); opacity:.75; }
+.turn.best{ background:rgba(82,216,105,.14); border-color:rgba(82,216,105,.6); }
+.turnmeta{ font-size:10px; color:var(--dim); margin-top:9px; }
+
+/* ---------------- HW/LW cards ---------------- */
+.hwlw{ display:flex; gap:8px; margin-bottom:12px; }
+.hwlw .card{
+  flex:1; max-width:96px; text-align:center; padding:8px 4px;
+  background:rgba(255,255,255,.04); border:1px solid var(--hairline); border-radius:8px;
+}
+.hwlw .t{ font-size:9px; letter-spacing:1.5px; font-weight:700; }
+.hwlw .t.hw{ color:var(--amber-text); } .hwlw .t.lw{ color:var(--gate-text); }
+.hwlw .when{ font-size:17px; margin:2px 0 1px; }
+.hwlw .h{ font-size:10px; color:var(--dim); }
+
+/* ---------------- chart ---------------- */
+.chart{ margin:0 0 12px; }
+.chart svg{ width:100%; height:auto; display:block; }
+
+/* ---------------- window chips ---------------- */
+.windows{ display:flex; flex-wrap:wrap; gap:6px; }
+.win{
+  border-radius:999px; padding:5px 11px; font-size:11px; font-weight:700; letter-spacing:.8px;
+  border:1px solid;
+}
+.win.ideal{ background:rgba(82,216,105,.14); border-color:rgba(82,216,105,.55); color:#9FDCA8; }
+.win.ok{ border-color:rgba(82,216,105,.3); color:var(--green-text); opacity:.85; }
+.win.closed{ border-color:rgba(246,107,94,.4); color:var(--red-text); opacity:.8; }
+.win.none{ border-color:var(--hairline); color:var(--muted); }
+
+/* ---------------- slot table ---------------- */
+.slots{ background:var(--panel); border:1px solid var(--hairline); border-radius:10px; overflow:hidden; margin-bottom:12px; }
+.slots .head, .slots .row{
+  display:grid; grid-template-columns:52px 1.25fr 1.15fr 92px;
+  align-items:center; padding:7px 12px; gap:4px;
+}
+.slots .head{ font-size:9px; letter-spacing:1.8px; color:var(--dim); text-transform:uppercase; border-bottom:1px solid var(--hairline); }
+.slots .row{ border-bottom:1px solid rgba(255,255,255,.04); cursor:pointer; }
+.slots .row:last-child{ border-bottom:0; }
+.slots .row.past{ opacity:.45; }
+.slots .row.sel{ outline:2px solid rgba(255,255,255,.35); outline-offset:-2px; border-radius:6px; }
+.slots .row.vrow{ background:rgba(46,125,50,.06); }
+.slots .row.vcare{ background:rgba(242,167,27,.05); }
+.slots .row.vdont{ background:rgba(198,40,40,.06); }
+.slots .row.vgate{ background:rgba(27,122,140,.09); }
+.slots .time{ font-size:15px; }
+.slots .cell{ font-size:12px; color:var(--sub); }
+.slots .cell small{ color:var(--dim); font-size:10px; }
+.slots .verdict{ display:flex; align-items:center; gap:6px; justify-content:flex-end; font-size:10.5px; font-weight:800; letter-spacing:1px; }
+.slots .sw{ width:9px; height:9px; border-radius:2px; flex:none; }
+.sw.g{ background:var(--green); } .sw.a{ background:var(--amber); }
+.sw.r{ background:var(--red); }  .sw.t{ background:var(--gate); }
+.sw.n{ background:transparent; border:1px solid var(--dim); }
+.vg{ color:var(--green-text); } .va{ color:var(--amber-text); }
+.vr{ color:var(--red-text); }  .vt{ color:var(--gate-text); } .vn{ color:var(--muted); }
+.slots .toggle{
+  width:100%; background:none; border:0; color:var(--dim); font-size:10px; letter-spacing:1.5px;
+  padding:8px; cursor:pointer; text-transform:uppercase; border-bottom:1px solid var(--hairline);
+}
+.wind-arrow{ display:inline-block; font-size:10px; }
+
+/* ---------------- flag panel ---------------- */
+.flagrow{ display:flex; align-items:center; gap:12px; }
+.flagchip{
+  font-size:15px; font-weight:800; letter-spacing:2px; border-radius:6px; padding:8px 14px;
+  border:1px solid;
+}
+.flagchip.RED{ color:var(--red-text); border-color:rgba(246,107,94,.6); background:rgba(198,40,40,.12); }
+.flagchip.YELLOW{ color:var(--amber-text); border-color:rgba(242,167,27,.6); background:rgba(242,167,27,.1); }
+.flagchip.GREEN{ color:var(--green-text); border-color:rgba(82,216,105,.5); background:rgba(46,125,50,.12); }
+.flagchip.BLACK{ color:var(--text); border-color:var(--hairline-strong); background:#000; }
+.flagmeta{ font-size:11px; color:var(--sub); line-height:1.55; }
+.flagmeta .src{ color:var(--dim); font-size:10px; }
+.flagaction{ margin-top:10px; font-size:11.5px; color:var(--sub); line-height:1.5;
+  border-top:1px solid var(--hairline); padding-top:9px; }
+
+/* ---------------- month view ---------------- */
+.month .mrow{
+  display:grid; grid-template-columns:58px 1fr; gap:10px; padding:9px 8px;
+  border-radius:8px; cursor:pointer; align-items:center;
+}
+.month .mrow.today{ background:rgba(255,255,255,.05); }
+.month .mrow .d{ line-height:1.15; }
+.month .mrow .d .a{ font-size:17px; }
+.month .mrow.today .d .a{ color:var(--green-text); }
+.month .mrow .d .n{ font-size:10px; color:var(--dim); }
+.month .strip{ display:flex; gap:1px; height:7px; margin-bottom:5px; }
+.month .strip i{ flex:1; }
+.month .strip i.g{ background:var(--green); } .month .strip i.a{ background:var(--amber); }
+.month .strip i.r{ background:var(--red); }  .month .strip i.t{ background:var(--gate); }
+.month .strip i.g2{ background:rgba(46,125,50,.38); } .month .strip i.a2{ background:rgba(242,167,27,.32); }
+.month .strip i.r2{ background:rgba(198,40,40,.34); } .month .strip i.x{ background:rgba(255,255,255,.06); }
+.month .sub{ font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.month .sub .best{ color:var(--green-text); font-weight:700; }
+.month .sub .conf{ color:var(--gate-text); }
+.month .sub .tideonly{ color:var(--dim); letter-spacing:1px; }
+.month .weekhdr{ font-size:9px; letter-spacing:2px; color:var(--dim); margin:12px 8px 4px; text-transform:uppercase; }
+.legend{ display:flex; gap:14px; flex-wrap:wrap; margin:10px 8px 0; font-size:10px; color:var(--muted); }
+.legend .sw{ display:inline-block; vertical-align:-1px; margin-right:5px; width:9px; height:9px; border-radius:2px; }
+
+/* ---------------- info view rows ---------------- */
+.how{ display:grid; grid-template-columns:16px 1fr; gap:8px 10px; align-items:start; }
+.how .sw{ margin-top:3px; width:10px; height:10px; border-radius:2px; }
+.how b{ font-size:12px; letter-spacing:.5px; }
+.how span{ display:block; font-size:11.5px; color:var(--sub); line-height:1.45; }
+.musts{ list-style:none; }
+.musts li{ font-size:12px; color:var(--sub); line-height:1.5; padding:5px 0 5px 18px; position:relative; }
+.musts li::before{ content:"—"; position:absolute; left:0; color:var(--gate-text); }
+a{ color:var(--gate-text); }
+
+.offline-note{ text-align:center; font-size:10px; color:var(--dim); margin-top:6px; letter-spacing:.5px; }

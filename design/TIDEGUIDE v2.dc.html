@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<title>TIDEGUIDE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TIDEGUIDE">
+<meta name="theme-color" content="#0D1B2A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;height:100%;background:#0A0B0D;overscroll-behavior:none;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+a{color:#42E34D}a:hover{color:#7BF08A}
+</style>
+</helmet>
+<!--
+TIDEGUIDE v2 — HANDOVER MANIFEST
+CDN: https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap
+     (+ fonts.gstatic.com woff2 files it references)
+     https://unpkg.com/react@18.3.1 + react-dom@18.3.1 (loaded by support.js; embedded offline in bundled TIDEGUIDE.html)
+ENDPOINTS: data/grid_v2.json (once on load, cache:no-store)
+     https://environment.data.gov.uk/flood-monitoring/id/stations/0009/readings?parameter=level&_sorted&since=<now-36h> (once on load; failure silently keeps JSON flag snapshot)
+STORAGE: localStorage "tideguide_grid_v2" (read+write: last good grid; deliberately NOT "tideway-grid" — unknown wrapper format, no collision either way)
+     CacheStorage "tideguide-v2" (sw.js only, export build)
+TIMERS: setInterval 20s — re-render tick for now-line/hero countdowns (no network); visibilitychange re-render; no polling
+FIELDS READ: generated, wind_horizon, grid.<date>[]: time, height_putney_m, tide_status, tide_light, wind_light, overall, wind_mph, gust_mph, wind_dir, wind_over_tide, hw_gate, notes, tide_only, day_deteriorates_at, confidence_90min.p_rowable, best_turn, sessions.<turn>.{verdict,duration_min,worst_reach}; putney_hwlw.<date>[].{type,time,height_m}; flag.{fetched,current.flag,latest.level_m,latest.time,next.flag_estimate,next.at}
+FIELDS IGNORED: model; hw_gate_putney_m (5.90/6.30 thresholds restated in INFO copy, not read); flag.current.min_12h_m; flag.next.trailing_min_m
+CHANGELOG: WEEK tab -> MONTH (all 35 days); inline week data -> fetch data/grid_v2.json + localStorage offline fallback + offline/stale(>13h)/date-out-of-range banners; new "HOW FAR CAN I GO" sessions panel (per-turn chips, best_turn, worst reach); hw_gate -> NO LAUNCH verdict + gate row-notes (deduped vs pipeline notes); tide-only days: dimmed tide-light rendering, no faked verdicts, RED-gate slots excluded from tide windows; confidence % on chips/month/sessions; EBB-TIDE FLAG card (live EA compute w/ 06:00/18:00 setting rule, JSON snapshot fallback, PLA link); INFO rewritten for v2 model; props demoDate/demoTime/showNotes; PWA head (manifest.webmanifest, sw.js register in export build)
+LIMITATIONS: AMBER hw_gate styling untested — no AMBER slot in attached grid; sw.js/manifest only meaningful in deployed export (TIDEGUIDE.html + sw.js + data/ side by side), DC preview skips sw; gate thresholds + "~14 days" horizon wording hardcoded in INFO copy rather than derived from hw_gate_putney_m/wind_horizon
+-->
+<div style="position:fixed;top:0;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;background:linear-gradient(180deg,#24282D 0%,#101214 38%,#0A0B0D 100%);font-family:'Barlow',sans-serif;color:#FFFFFF" onTouchStart="{{onTS}}" onTouchEnd="{{onTE}}">
+<div style="max-width:460px;margin:0 auto;padding-top:calc(env(safe-area-inset-top) + 10px);padding-bottom:calc(env(safe-area-inset-bottom) + 28px)">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 0">
+    <svg width="22" height="14" viewBox="0 0 20 13" fill="none"><path d="M1 10 C4 3 7 2.6 10 6 S16 10.4 19 3.6" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"></path></svg>
+    <div style="display:flex;align-items:center;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:2px 4px">
+      <span onClick="{{onPrev}}" style="cursor:pointer;color:{{prevC}};font-size:14px;padding:5px 12px">‹</span>
+      <span onClick="{{onPill}}" style="cursor:pointer;color:#FFFFFF;font-size:11px;font-weight:600;letter-spacing:2.2px;padding:5px 4px;white-space:nowrap;flex:none">{{dayPill}}</span>
+      <span onClick="{{onNext}}" style="cursor:pointer;color:{{nextC}};font-size:14px;padding:5px 12px">›</span>
+    </div>
+    <span style="color:#5F6B73;font-size:10px;font-weight:600;letter-spacing:1.5px">BST</span>
+  </div>
+
+  <div style="display:flex;justify-content:center;gap:28px;margin-top:14px">
+    <span onClick="{{onTabToday}}" style="cursor:pointer;color:{{tabTodayC}};font-size:11px;font-weight:600;letter-spacing:2.2px;border-bottom:{{tabTodayB}};padding-bottom:6px">TODAY</span>
+    <span onClick="{{onTabMonth}}" style="cursor:pointer;color:{{tabMonthC}};font-size:11px;font-weight:600;letter-spacing:2.2px;border-bottom:{{tabMonthB}};padding-bottom:6px">MONTH</span>
+    <span onClick="{{onTabInfo}}" style="cursor:pointer;color:{{tabInfoC}};font-size:11px;font-weight:600;letter-spacing:2.2px;border-bottom:{{tabInfoB}};padding-bottom:6px">INFO</span>
+  </div>
+
+  <sc-if value="{{bannerShow}}" hint-placeholder-val="{{ false }}">
+    <div style="text-align:center;margin-top:12px;padding:0 18px"><span style="color:#F8C81C;font-size:10px;font-weight:600;letter-spacing:1.6px;border:1px solid rgba(248,200,28,.35);border-radius:5px;padding:5px 10px;display:inline-block;line-height:1.6">{{bannerText}}</span></div>
+  </sc-if>
+
+  <sc-if value="{{loadFail}}" hint-placeholder-val="{{ false }}">
+    <div style="text-align:center;padding:90px 30px 0">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:700;letter-spacing:2px;color:#FF6B5E">COULDN'T LOAD THE GRID</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.6;margin-top:12px">No connection and no saved copy on this phone yet. Open the app once while online and it will keep working offline after that.</div>
+    </div>
+  </sc-if>
+
+  <!-- ================= DAY VIEW ================= -->
+  <sc-if value="{{isToday}}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Day view">
+    <div style="position:relative;margin-top:2px">
+      <svg viewBox="0 0 390 300" width="100%" style="display:block">
+        <sc-for list="{{ring.arcs}}" as="a" hint-placeholder-count="8"><path d="{{a.d}}" stroke="{{a.c}}" stroke-width="22" fill="none"></path></sc-for>
+        <sc-for list="{{ring.tlabels}}" as="t" hint-placeholder-count="2"><text x="{{t.x}}" y="{{t.y}}" text-anchor="middle" font-size="9" font-family="Barlow" fill="#5F6B73">{{t.t}}</text></sc-for>
+        <sc-for list="{{ring.evs}}" as="e" hint-placeholder-count="1"><text x="{{e.x}}" y="{{e.y}}" text-anchor="{{e.a}}" font-size="8.5" font-family="Barlow" font-weight="600" letter-spacing="1" fill="#98A2AB">{{e.t}}</text></sc-for>
+        <text x="186" y="24" text-anchor="end" font-size="8.5" font-family="Barlow" fill="#5F6B73">04:30</text>
+        <text x="204" y="24" text-anchor="start" font-size="8.5" font-family="Barlow" fill="#5F6B73">20:30</text>
+        <sc-if value="{{ring.nowShow}}" hint-placeholder-val="{{ false }}"><line x1="{{ring.nx1}}" y1="{{ring.ny1}}" x2="{{ring.nx2}}" y2="{{ring.ny2}}" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></line></sc-if>
+      </svg>
+      <div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none">
+        <div style="color:#98A2AB;font-size:9.5px;font-weight:600;letter-spacing:2.5px">{{hero.label}}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:{{hero.size}}px;font-weight:700;letter-spacing:2px;color:{{hero.c}};line-height:1.1">{{hero.word}}</div>
+        <sc-if value="{{hero.chipShow}}" hint-placeholder-val="{{ false }}"><div style="border:1px solid {{hero.chipBd}};color:{{hero.chipC}};font-size:9px;font-weight:600;letter-spacing:1.8px;padding:3px 8px;border-radius:4px;margin-top:3px">{{hero.chipT}}</div></sc-if>
+        <div style="height:7px"></div>
+        <sc-for list="{{hero.lines}}" as="l" hint-placeholder-count="2"><div style="font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:{{l.c}};margin-top:2px;max-width:190px">{{l.t}}</div></sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{statsShow}}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:8px 34px 0">
+      <div style="text-align:center">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:600;color:{{statTideC}}">{{statTideV}}</div>
+        <div style="color:#98A2AB;font-size:9.5px;font-weight:600;letter-spacing:2px;margin-top:2px">{{statTideL}}</div>
+      </div>
+      <div style="width:1px;height:34px;background:rgba(255,255,255,.12)"></div>
+      <div style="text-align:center">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:600;color:{{statWindC}}">{{statWindV}}</div>
+        <div style="color:#98A2AB;font-size:9.5px;font-weight:600;letter-spacing:2px;margin-top:2px">{{statWindL}}</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <div style="display:flex;justify-content:center;gap:8px;margin:14px 18px 0">
+      <sc-for list="{{hwlw}}" as="e" hint-placeholder-count="4">
+        <div style="flex:1;max-width:88px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 6px;text-align:center">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:{{e.tyC}}">{{e.ty}}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:600;color:#FFFFFF;margin-top:1px">{{e.t}}</div>
+          <div style="font-size:9.5px;color:#5F6B73">{{e.h}}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <svg viewBox="0 0 390 212" width="100%" style="display:block;margin-top:14px">
+      <defs><linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(0,168,232,.22)"></stop><stop offset="1" stop-color="rgba(0,168,232,0)"></stop></linearGradient></defs>
+      <sc-for list="{{chart.ygrid}}" as="g" hint-placeholder-count="2"><g><line x1="34" y1="{{g.y}}" x2="376" y2="{{g.y}}" stroke="rgba(255,255,255,.07)" stroke-width="1"></line><text x="28" y="{{g.yl}}" text-anchor="end" font-size="8.5" font-family="Barlow" fill="#5F6B73">{{g.t}}</text></g></sc-for>
+      <path d="{{chart.areaD}}" fill="url(#wgrad)"></path>
+      <path d="{{chart.lineD}}" stroke="#00A8E8" stroke-width="2" fill="none" stroke-linecap="round"></path>
+      <sc-for list="{{chart.evDots}}" as="e" hint-placeholder-count="1"><circle cx="{{e.x}}" cy="{{e.y}}" r="3" fill="#FFFFFF" stroke="#0A0B0D" stroke-width="1.5"></circle></sc-for>
+      <sc-for list="{{chart.events}}" as="e" hint-placeholder-count="1"><text x="{{e.x}}" y="{{e.y}}" text-anchor="{{e.a}}" font-size="9" font-family="Barlow" font-weight="600" letter-spacing="1" fill="#B9C2C9">{{e.t}}</text></sc-for>
+      <text x="28" y="160.5" text-anchor="end" font-size="8.5" font-family="Barlow" font-weight="600" letter-spacing="1" fill="#5F6B73">TIDE</text>
+      <sc-for list="{{chart.tide}}" as="s" hint-placeholder-count="6"><rect x="{{s.x}}" y="154" width="8.8" height="8" rx="1.5" fill="{{s.c}}"></rect></sc-for>
+      <text x="28" y="182.5" text-anchor="end" font-size="8.5" font-family="Barlow" font-weight="600" letter-spacing="1" fill="#5F6B73">WIND</text>
+      <sc-for list="{{chart.wind}}" as="s" hint-placeholder-count="6"><rect x="{{s.x}}" y="176" width="8.8" height="8" rx="1.5" fill="{{s.c}}"></rect></sc-for>
+      <sc-for list="{{chart.axis}}" as="ax" hint-placeholder-count="2"><text x="{{ax.x}}" y="202" text-anchor="middle" font-size="9" font-family="Barlow" fill="#5F6B73">{{ax.t}}</text></sc-for>
+      <sc-if value="{{chart.nowShow}}" hint-placeholder-val="{{ false }}"><g><line x1="{{chart.nowX}}" y1="10" x2="{{chart.nowX}}" y2="186" stroke="rgba(255,255,255,.85)" stroke-width="1.2"></line><circle cx="{{chart.nowX}}" cy="{{chart.nowY}}" r="3.6" fill="#FFFFFF" stroke="#0A0B0D" stroke-width="1.5"></circle></g></sc-if>
+    </svg>
+
+    <sc-if value="{{sess.show}}" hint-placeholder-val="{{ false }}">
+    <div style="margin:16px 18px 0;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+        <span style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">HOW FAR CAN I GO</span>
+        <span style="color:#5F6B73;font-size:9px;font-weight:600;letter-spacing:1.2px;white-space:nowrap">{{sess.when}}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:11px">
+        <sc-for list="{{sess.turns}}" as="c" hint-placeholder-count="5">
+          <span style="background:{{c.bg}};border:1px solid {{c.bd}};color:{{c.cl}};font-size:10.5px;font-weight:600;letter-spacing:.8px;padding:6px 9px;border-radius:5px;display:inline-flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:1.5px;background:{{c.dot}};flex:none"></span>{{c.t}}<span style="color:#5F6B73;font-size:9px;font-weight:600">{{c.min}}</span></span>
+        </sc-for>
+      </div>
+      <div style="margin-top:11px;font-size:10.5px;font-weight:600;letter-spacing:1.2px;color:{{sess.bestC}}">{{sess.bestT}}</div>
+      <sc-if value="{{sess.worstShow}}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;font-size:10.5px;color:#98A2AB;letter-spacing:.6px">{{sess.worstT}}</div></sc-if>
+    </div>
+    </sc-if>
+
+    <div style="padding:0 18px;margin-top:14px">
+      <div style="color:#98A2AB;font-size:9.5px;font-weight:600;letter-spacing:2.2px">WINDOWS — {{dayName}}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px">
+        <sc-for list="{{chips}}" as="c" hint-placeholder-count="3">
+          <span style="background:{{c.bg}};border:1px solid {{c.bd}};color:{{c.cl}};font-size:11px;font-weight:600;letter-spacing:1.2px;padding:7px 11px;border-radius:5px">{{c.t}}</span>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <div style="display:grid;grid-template-columns:50px 92px 1fr 80px;padding:0 18px 8px;font-size:9px;font-weight:600;letter-spacing:1.8px;color:#5F6B73"><span>TIME</span><span>TIDE</span><span>WIND</span><span style="text-align:right">VERDICT</span></div>
+      <sc-if value="{{tbl.toggleShow}}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{tbl.onToggle}}" style="cursor:pointer;padding:9px 18px;font-size:10.5px;font-weight:500;letter-spacing:1px;color:#5F6B73;border-top:1px solid rgba(255,255,255,.07)">{{tbl.toggleText}}</div>
+      </sc-if>
+      <sc-for list="{{tbl.rows}}" as="r" hint-placeholder-count="8">
+        <div style="border-top:1px solid rgba(255,255,255,.06);background:{{r.tint}};padding:7px 18px;display:grid;grid-template-columns:50px 92px 1fr 80px;align-items:center;opacity:{{r.op}}">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:600;color:{{r.tCol}}">{{r.t}}</span>
+          <span style="display:flex;align-items:baseline;gap:5px;white-space:nowrap"><span style="font-size:13px;font-weight:500;color:#D6DDE2">{{r.h}}</span><span style="font-size:9px;font-weight:600;letter-spacing:.6px;color:{{r.tlC}}">{{r.gl}} {{r.pwU}}</span></span>
+          <sc-if value="{{r.hasWind}}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="-6.5 -6.5 13 13" style="flex:none"><path d="M0,-4.6 L0,4.6 M-2.9,-1.4 L0,-4.6 L2.9,-1.4" stroke="{{r.wlC}}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="rotate({{r.rot}})"></path></svg><span style="font-size:13px;font-weight:500;color:#D6DDE2;white-space:nowrap">{{r.mph}}<span style="color:#5F6B73;font-size:9.5px;font-weight:600;letter-spacing:.5px"> {{r.dir}} · G{{r.gust}}</span></span></span></sc-if>
+          <sc-if value="{{r.noWind}}" hint-placeholder-val="{{ false }}"><span style="color:#5F6B73;font-size:10px;font-weight:600;letter-spacing:1px">—</span></sc-if>
+          <span style="display:flex;justify-content:flex-end"><span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:1px;color:{{r.vC}};white-space:nowrap;text-align:right"><span style="width:7px;height:7px;border-radius:1.5px;background:{{r.vDot}};flex:none"></span>{{r.vW}}</span></span>
+          <sc-if value="{{r.showNote}}" hint-placeholder-val="{{ false }}"><span style="grid-column:1/-1;font-size:10.5px;color:#6E7A83;padding-top:3px">{{r.note}}</span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{flag.show}}" hint-placeholder-val="{{ false }}">
+    <div style="margin:18px 18px 0;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <svg width="14" height="16" viewBox="0 0 14 16" fill="none"><path d="M2.5 1 L2.5 15 M2.5 2 L11.5 4.5 L2.5 7" stroke="#F8C81C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">EBB-TIDE FLAG</span>
+        <span style="margin-left:auto;color:#5F6B73;font-size:9px;font-weight:600;letter-spacing:1.2px">{{flag.src}}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+        <span style="background:{{flag.bg}};border:1px solid {{flag.bd}};color:{{flag.cl}};font-size:13px;font-weight:700;letter-spacing:2.5px;padding:7px 14px;border-radius:6px;flex:none">{{flag.cur}}</span>
+        <div style="min-width:0">
+          <div style="color:#D6DDE2;font-size:12px;font-weight:500">Richmond {{flag.level}}</div>
+          <div style="color:#5F6B73;font-size:10px;font-weight:600;letter-spacing:.8px;margin-top:2px">{{flag.next}}</div>
+        </div>
+      </div>
+      <div style="color:#98A2AB;font-size:11.5px;line-height:1.55;margin-top:10px">{{flag.action}}</div>
+      <div style="color:#5F6B73;font-size:10px;line-height:1.7;margin-top:7px">BLACK — don't boat at low tide · RED — CRSA clearance, low flood only · GREEN — caution / good lookout</div>
+      <div style="margin-top:8px"><a href="https://pla.co.uk/ebb-tide-flag-warning" target="_blank" rel="noopener" style="font-size:10px;font-weight:600;letter-spacing:1px;text-decoration:none">CROSS-CHECK AT PLA.CO.UK ›</a></div>
+      <div style="color:#454F56;font-size:9.5px;line-height:1.5;margin-top:8px">Context only — the flag never changes a slot verdict. The flag flying at the club governs.</div>
+    </div>
+    </sc-if>
+
+    <div style="text-align:center;color:#454F56;font-size:9px;font-weight:600;letter-spacing:1.5px;margin-top:16px">{{genNote}}</div>
+  </div>
+  </sc-if>
+
+  <!-- ================= MONTH VIEW ================= -->
+  <sc-if value="{{isMonth}}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Month view" style="padding:0 18px">
+    <div style="color:#98A2AB;font-size:9.5px;font-weight:600;letter-spacing:2.2px;margin-top:20px">{{monthHead}}</div>
+    <div style="margin-top:8px">
+      <sc-for list="{{monthRows}}" as="d" hint-placeholder-count="10">
+        <div onClick="{{d.onTap}}" style="cursor:pointer;display:grid;grid-template-columns:58px 1fr;gap:10px;align-items:center;padding:11px 10px;margin:0 -10px;border-radius:10px;background:{{d.bg}};border-top:1px solid rgba(255,255,255,.05);opacity:{{d.op}}">
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:600;color:{{d.lc}}">{{d.lab}}</div>
+            <div style="font-size:8.5px;font-weight:600;letter-spacing:1px;color:#5F6B73;white-space:nowrap">{{d.sub}}</div>
+          </div>
+          <div>
+            <div style="display:flex;gap:1px"><sc-for list="{{d.segs}}" as="s" hint-placeholder-count="8"><span style="flex:1;height:7px;background:{{s.c}}"></span></sc-for></div>
+            <div style="display:flex;justify-content:space-between;gap:8px;margin-top:5px;font-size:9.5px;font-weight:600;letter-spacing:.5px"><span style="color:#98A2AB;white-space:nowrap">{{d.best}}</span><span style="color:{{d.idealC}};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{d.idealTxt}}</span></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;color:#5F6B73;font-size:9px;font-weight:600;letter-spacing:1.2px;margin-top:10px;padding:0 2px"><span>04:30</span><span>BARS RUN 04:30 → 20:30</span><span>20:30</span></div>
+    <div style="text-align:center;color:#5F6B73;font-size:10px;font-weight:600;letter-spacing:1.5px;margin-top:14px">TAP A DAY FOR THE FULL PLAN</div>
+    <div style="text-align:center;color:#454F56;font-size:9px;font-weight:600;letter-spacing:1.2px;margin-top:8px;line-height:1.8">FULL VERDICTS TO {{windEnd}} · TIDE ONLY BEYOND — WIND ISN'T KNOWABLE THAT FAR OUT<br>% = CONFIDENCE A WINDOW HOLDS (40-MEMBER ENSEMBLE, FIRST 7 DAYS)</div>
+  </div>
+  </sc-if>
+
+  <!-- ================= INFO VIEW ================= -->
+  <sc-if value="{{isInfo}}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Info view" style="padding:0 18px">
+    <div style="margin-top:20px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">HOW TO READ IT</div>
+      <div style="display:flex;align-items:flex-start;gap:9px;margin-top:11px"><span style="margin-top:4px;width:9px;height:9px;border-radius:2px;background:#42E34D;flex:none"></span><div style="flex:1;min-width:0;color:#C3CCD2;font-size:12px;line-height:1.5"><span style="color:#FFFFFF;font-weight:600">ROW</span> — tide and wind both green. Ideal.</div></div>
+      <div style="display:flex;align-items:flex-start;gap:9px;margin-top:8px"><span style="margin-top:4px;width:9px;height:9px;border-radius:2px;background:#F8C81C;flex:none"></span><div style="flex:1;min-width:0;color:#C3CCD2;font-size:12px;line-height:1.5"><span style="color:#FFFFFF;font-weight:600">CAUTION</span> — amber somewhere, nothing red. Row with care.</div></div>
+      <div style="display:flex;align-items:flex-start;gap:9px;margin-top:8px"><span style="margin-top:4px;width:9px;height:9px;border-radius:2px;background:#FF3B30;flex:none"></span><div style="flex:1;min-width:0;color:#C3CCD2;font-size:12px;line-height:1.5"><span style="color:#FFFFFF;font-weight:600">DON'T ROW</span> — anything red closes the window.</div></div>
+      <div style="display:flex;align-items:flex-start;gap:9px;margin-top:8px"><span style="margin-top:4px;width:9px;height:9px;border-radius:2px;background:#FF3B30;border:1px solid rgba(255,255,255,.5);flex:none"></span><div style="flex:1;min-width:0;color:#C3CCD2;font-size:12px;line-height:1.5"><span style="color:#FFFFFF;font-weight:600">NO LAUNCH</span> — embankment flooded at HW. Launching and landing blocked; being afloat is fine.</div></div>
+      <div style="display:flex;align-items:flex-start;gap:9px;margin-top:8px"><span style="margin-top:4px;width:9px;height:9px;border-radius:2px;background:rgba(66,227,77,.35);flex:none"></span><div style="flex:1;min-width:0;color:#C3CCD2;font-size:12px;line-height:1.5"><span style="color:#FFFFFF;font-weight:600">TIDE ONLY</span> — beyond the wind forecast (~14 days). Tide windows shown, no verdicts faked.</div></div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">HOW FAR CAN I GO — SESSIONS</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px">The v2 model rows the whole out-and-back from Putney through six reaches, per turn point (Hammersmith → Kew), for a launch at that slot. A turn is green only if every reach stays green for the full round trip. <span style="color:#C3CCD2">BEST TURN</span> is the furthest still rowable in ≤ 135 min.</div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">HW GATE — EMBANKMENT FLOODING</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px">Putney HW <span style="color:#F8C81C">≥ 5.90 m — AMBER</span>: parts of the Embankment road may flood around high water. Time the launch; expect wet feet. <span style="color:#FF6B5E">≥ 6.30 m — RED</span>: above anything boated — no launching or landing through HW ("NO LAUNCH"). Being afloat through high water is fine.</div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">TIDE LIGHT — THE BLACK-FLAG RULE</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px">Do not boat at low tide. <span style="color:#FF6B5E">Red</span> ≈ 1 h before to 2 h after low water. <span style="color:#F8C81C">Amber</span> = the flanking half-hours. <span style="color:#42E34D">Green</span> = the rest of the ebb and the risen flood.</div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">WIND LIGHT — SUSTAINED SPEED</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px"><span style="color:#42E34D">Green ≤ 8 mph</span> · <span style="color:#F8C81C">Amber 9–13</span> · <span style="color:#FF6B5E">Red &gt; 13 mph</span>, or gusts ≥ 32, or wind-over-tide once already breezy.</div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">EBB-TIDE FLAG — HOW IT'S SET</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px">At 06:00 and 18:00 the lowest Richmond (EA 0009) reading of the preceding 12 h sets the flag: <span style="color:#FF6B5E">≥ 2.6 m RED</span> · <span style="color:#F8C81C">1.7–2.6 YELLOW</span> · <span style="color:#42E34D">0–1.7 GREEN</span> · <span style="color:#FFFFFF">&lt; 0 BLACK</span>. The app computes it live from EA readings when online, else shows the pipeline snapshot. Display-only — it never changes a verdict. <a href="https://pla.co.uk/ebb-tide-flag-warning" target="_blank" rel="noopener">Cross-check at pla.co.uk</a>.</div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px">
+      <div style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">SOURCES</div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px">Calibrated per-reach model v2, rebuilt every 6 h on the pipeline. PLA tide predictions; wind to ~14 days ({{windEnd}}); 40-member ensemble confidence to ~7 days. Rowing hours 04:30–20:30; pre-sunrise slots noted as dark. The grid JSON is the single source of truth — the app renders it and adds nothing.</div>
+    </div>
+    <div style="margin-top:10px;background:#15181B;border:1px solid rgba(248,200,28,.3);border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <svg width="14" height="16" viewBox="0 0 14 16" fill="none"><path d="M2.5 1 L2.5 15 M2.5 2 L11.5 4.5 L2.5 7" stroke="#F8C81C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span style="color:#FFFFFF;font-size:10.5px;font-weight:600;letter-spacing:2px">NOT MODELLED</span>
+      </div>
+      <div style="color:#98A2AB;font-size:12px;line-height:1.55;margin-top:8px">Fluvial surges beyond the flag snapshot, commercial traffic and debris. This app informs — it never authorises. The club / PLA flag on the day always governs.</div>
+    </div>
+    <div style="text-align:center;color:#5F6B73;font-size:9.5px;font-weight:600;letter-spacing:1.5px;margin-top:16px;line-height:1.8">{{genNote}}<br>{{rangeNote}}</div>
+  </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 390, &quot;height&quot;: 844}, &quot;demoDate&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Demo&quot;}, &quot;demoTime&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Demo&quot;}, &quot;showNotes&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Table&quot;}}">
+class Component extends DCLogic {
+  state = { ready: false, loadFail: false, offline: false, dayIdx: null, view: 'today', earlierOpen: false, tick: 0 };
+
+  async componentDidMount() {
+    let data = null, offline = false;
+    try {
+      const r = await fetch('data/grid_v2.json', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      data = await r.json();
+      try { localStorage.setItem('tideguide_grid_v2', JSON.stringify(data)); } catch (e) {}
+    } catch (e) {
+      try { const s = localStorage.getItem('tideguide_grid_v2'); if (s) { data = JSON.parse(s); offline = true; } } catch (e2) {}
+    }
+    if (!data || !data.grid) { this.setState({ loadFail: true }); return; }
+    this.data = data;
+    this.prepare();
+    this.setState({ ready: true, offline });
+    this.fetchLiveFlag();
+    this._iv = setInterval(() => this.setState(s => ({ tick: s.tick + 1 })), 20000);
+    this._vis = () => { if (!document.hidden) this.setState(s => ({ tick: s.tick + 1 })); };
+    document.addEventListener('visibilitychange', this._vis);
+    this._key = (e) => {
+      if (e.key === 'ArrowLeft') this.stepDay(-1);
+      if (e.key === 'ArrowRight') this.stepDay(1);
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount() {
+    clearInterval(this._iv);
+    document.removeEventListener('visibilitychange', this._vis);
+    window.removeEventListener('keydown', this._key);
+  }
+
+  async fetchLiveFlag() {
+    try {
+      const since = new Date(Date.now() - 36 * 3600e3).toISOString().slice(0, 19) + 'Z';
+      const r = await fetch('https://environment.data.gov.uk/flood-monitoring/id/stations/0009/readings?parameter=level&_sorted&since=' + since);
+      if (!r.ok) return;
+      const j = await r.json();
+      const items = (j.items || []).map(i => ({ t: new Date(i.dateTime), v: i.value })).filter(i => isFinite(i.v) && !isNaN(i.t));
+      if (!items.length) return;
+      this.liveFlag = this.computeFlag(items);
+      this.setState(s => ({ tick: s.tick + 1 }));
+    } catch (e) {}
+  }
+  computeFlag(items) {
+    const band = m => m == null ? null : m < 0 ? 'BLACK' : m < 1.7 ? 'GREEN' : m < 2.6 ? 'YELLOW' : 'RED';
+    const latest = items[0];
+    const now = new Date();
+    const b = new Date(now); b.setMinutes(0, 0, 0);
+    const h = now.getHours();
+    b.setHours(h >= 18 ? 18 : h >= 6 ? 6 : -6);
+    const from = new Date(b.getTime() - 12 * 3600e3);
+    const win = items.filter(i => i.t >= from && i.t <= b);
+    const min12 = win.length ? Math.min.apply(null, win.map(i => i.v)) : null;
+    const from2 = new Date(now.getTime() - 12 * 3600e3);
+    const win2 = items.filter(i => i.t >= from2);
+    const tmin = win2.length ? Math.min.apply(null, win2.map(i => i.v)) : null;
+    const next = new Date(b.getTime() + 12 * 3600e3);
+    if (min12 == null && tmin == null) return null;
+    return {
+      live: true,
+      latest: { time: latest.t, level_m: latest.v },
+      current: { flag: band(min12), min_12h_m: min12 },
+      next: { flag_estimate: band(tmin), at: next, trailing_min_m: tmin }
+    };
+  }
+  hm(x) {
+    if (x == null) return '';
+    if (x instanceof Date) return String(x.getHours()).padStart(2, '0') + ':' + String(x.getMinutes()).padStart(2, '0');
+    const m = String(x).match(/T(\d\d:\d\d)/); return m ? m[1] : String(x);
+  }
+
+  prepare() {
+    const data = this.data;
+    const dates = Object.keys(data.grid).sort();
+    const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const DIRS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const vmap = { 'ROW': 'row', 'Caution': 'care', "Don't row": 'no', 'No launch (embankment)': 'nolaunch' };
+    const tmin = this.tmin.bind(this), tstr = this.tstr.bind(this);
+    this.days = dates.map(key => {
+      const parts = key.split('-').map(Number);
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      const raw = data.grid[key];
+      const slots = raw.map(s => ({
+        t: s.time, h: s.height_putney_m,
+        phase: /Ebb/i.test(s.tide_status) ? 'ebb' : /Flood/i.test(s.tide_status) ? 'flood' : 'slack',
+        tl: s.tide_light ? s.tide_light[0] : null,
+        wl: s.wind_light ? s.wind_light[0] : null,
+        verdict: s.tide_only ? null : (vmap[s.overall] || 'no'),
+        wind: s.wind_mph == null ? null : { mph: Math.round(s.wind_mph), gust: Math.round(s.gust_mph || 0), deg: s.wind_dir || 0, dir: DIRS[Math.round((s.wind_dir || 0) / 22.5) % 16], wot: !!s.wind_over_tide },
+        gate: s.hw_gate || null, tlEff: (s.hw_gate === 'RED' ? 'R' : (s.tide_light ? s.tide_light[0] : null)),
+        note: s.notes || '', conf: s.confidence_90min || null,
+        sessions: s.sessions || null, best_turn: s.best_turn == null ? null : s.best_turn,
+        tideOnly: !!s.tide_only
+      }));
+      const tideOnly = slots.every(s => s.tideOnly);
+      const win = pred => {
+        const ws = []; let i0 = -1;
+        for (let i = 0; i <= slots.length; i++) {
+          const ok = i < slots.length && pred(slots[i]);
+          if (ok && i0 < 0) i0 = i;
+          if (!ok && i0 >= 0) { ws.push([slots[i0].t, tstr(tmin(slots[i - 1].t) + 30)]); i0 = -1; }
+        }
+        return ws;
+      };
+      const rowableV = v => v === 'row' || v === 'care';
+      const rowable = tideOnly ? win(s => s.tl === 'G' && s.gate !== 'RED') : win(s => rowableV(s.verdict));
+      const ideal = tideOnly ? [] : win(s => s.verdict === 'row');
+      let best = '', bl = -1;
+      rowable.forEach(w => { const l = tmin(w[1]) - tmin(w[0]); if (l > bl) { bl = l; best = w[0] + '–' + w[1]; } });
+      const confSlots = slots.filter(s => rowableV(s.verdict) && s.conf);
+      const detS = raw.find(s => s.day_deteriorates_at);
+      return {
+        key, tideOnly, slots,
+        events: ((data.putney_hwlw && data.putney_hwlw[key]) || []).map(e => ({ type: e.type, time: e.time, h: e.height_m })),
+        rowable, ideal, best,
+        det: detS ? detS.day_deteriorates_at : null,
+        weekday: WD[dt.getDay()], dayShort: WD[dt.getDay()].slice(0, 3), dateShort: parts[2] + ' ' + MO[parts[1] - 1],
+        conf: confSlots.length ? Math.min.apply(null, confSlots.map(s => s.conf.p_rowable)) : null
+      };
+    });
+    const g = new Date(data.generated);
+    this.genNote = 'GRID GENERATED ' + this.hm(g) + ' · ' + g.getDate() + ' ' + MO[g.getMonth()].toUpperCase();
+    const wh = new Date(data.wind_horizon);
+    this.windEnd = isNaN(wh) ? '~14 DAYS' : wh.getDate() + ' ' + MO[wh.getMonth()].toUpperCase();
+    const d0 = this.days[0], dN = this.days[this.days.length - 1];
+    this.rangeNote = d0.dateShort.toUpperCase() + ' – ' + dN.dateShort.toUpperCase() + ' · ' + this.days.length + ' DAYS';
+  }
+
+  tmin(t) { const p = t.split(':'); return +p[0] * 60 + +p[1]; }
+  tstr(m) { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+  inFmt(d) { const h = Math.floor(d / 60), m = d % 60; return h ? 'IN ' + h + 'H ' + (m ? m + 'M' : '') : 'IN ' + m + 'M'; }
+
+  nowInfo() {
+    const demoT = (this.props.demoTime ?? '').trim();
+    const demoD = (this.props.demoDate ?? '').trim();
+    const d = new Date();
+    let nowMin = d.getHours() * 60 + d.getMinutes();
+    if (/^\d{1,2}:\d{2}$/.test(demoT)) nowMin = this.tmin(demoT);
+    const key = /^\d{4}-\d{2}-\d{2}$/.test(demoD) ? demoD :
+      d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    let todayIdx = this.days.findIndex(x => x.key === key);
+    const stale = todayIdx < 0;
+    if (stale) todayIdx = 0;
+    return { nowMin, todayIdx, stale };
+  }
+
+  stepDay(dir) {
+    if (this.state.view !== 'today') return;
+    const n = this.nowInfo();
+    const cur = this.state.dayIdx ?? this.initialIdx(n);
+    const nx = Math.max(0, Math.min(this.days.length - 1, cur + dir));
+    if (nx !== cur) this.setState({ dayIdx: nx, earlierOpen: false });
+  }
+  initialIdx(n) {
+    if (n.stale) return 0;
+    if (n.nowMin > 1230 && n.todayIdx < this.days.length - 1) return n.todayIdx + 1;
+    return n.todayIdx;
+  }
+
+  renderVals() {
+    try { return this._rv(); } catch (e) { console.error('[TG] renderVals threw', e && e.message, e && e.stack); return { loadFail: false, isToday: true, hero: {}, ring: {}, chart: {}, tbl: {}, sess: {}, flag: {}, onTS: () => {}, onTE: () => {} }; }
+  }
+  _rv() {
+    if (this.state.loadFail) return { loadFail: true, isToday: false, isMonth: false, isInfo: false, bannerShow: false, dayPill: 'TIDEGUIDE', prevC: '#2E353A', nextC: '#2E353A', tabTodayC: '#5F6B73', tabTodayB: '2px solid transparent', tabMonthC: '#5F6B73', tabMonthB: '2px solid transparent', tabInfoC: '#5F6B73', tabInfoB: '2px solid transparent', hero: {}, ring: {}, chart: {}, tbl: {}, sess: {}, flag: {}, onTS: () => {}, onTE: () => {} };
+    if (!this.state.ready) return { loadFail: false, isToday: true, hero: {}, ring: {}, chart: {}, tbl: {}, sess: {}, flag: {}, onTS: () => {}, onTE: () => {} };
+    const days = this.days;
+    const G = '#42E34D', Y = '#F8C81C', R = '#FF3B30', MUT = '#98A2AB', RED2 = '#FF6B5E', DIM = '#5F6B73';
+    const rowableV = v => v === 'row' || v === 'care';
+    const vcol = v => v === 'row' ? G : v === 'care' ? Y : v == null ? 'rgba(255,255,255,.10)' : R;
+    const lcol = l => l === 'G' ? G : l === 'A' ? Y : l === 'R' ? R : 'rgba(255,255,255,.10)';
+    const dimL = l => l === 'G' ? 'rgba(66,227,77,.38)' : l === 'A' ? 'rgba(248,200,28,.38)' : l === 'R' ? 'rgba(255,59,48,.38)' : 'rgba(255,255,255,.08)';
+    const r1 = n => Math.round(n * 10) / 10;
+    const T0 = 270;
+    const tmin = this.tmin.bind(this), tstr = this.tstr.bind(this);
+
+    const n = this.nowInfo();
+    const idx = this.state.dayIdx ?? this.initialIdx(n);
+    const day = days[idx];
+    const slots = day.slots;
+    const N = slots.length, LAST = N - 1;
+    const SPAN = N * 30 - 30 + 30;
+    const END = T0 + N * 30 - 30;
+    const isLive = !n.stale && idx === n.todayIdx && !day.tideOnly && n.nowMin >= T0 && n.nowMin <= END;
+    const autoTomorrow = this.state.dayIdx === null && !n.stale && n.nowMin > END && idx === n.todayIdx + 1;
+    const curIdx = Math.max(0, Math.min(LAST, Math.floor((n.nowMin - T0) / 30)));
+    const cur = slots[curIdx];
+    const pct = p => Math.round(p * 100) + '%';
+
+    // ---------- hero ----------
+    const nextWhere = (from, pred) => { for (let i = from; i < N; i++) if (pred(slots[i])) return i; return -1; };
+    const hero = { lines: [], chipShow: false, chipT: '', chipBd: '', chipC: '' };
+    const winsTxt = ws => ws.map(w => w[0] + '–' + w[1]).join(' · ');
+    if (isLive) {
+      hero.label = 'NOW · ' + tstr(n.nowMin);
+      const v = cur.verdict;
+      if (v === 'nolaunch') {
+        hero.word = 'NO LAUNCH'; hero.c = R; hero.size = 40;
+        hero.chipShow = true; hero.chipT = 'EMBANKMENT ≥ 6.3 M'; hero.chipBd = 'rgba(255,59,48,.5)'; hero.chipC = '#FF8A80';
+        hero.lines.push({ c: MUT, t: 'AFLOAT IS FINE — LAUNCH/LAND BLOCKED THROUGH HW' });
+      } else if (v === 'no') { hero.word = "DON'T ROW"; hero.c = R; hero.size = 44; }
+      else { hero.word = 'ROW'; hero.c = v === 'row' ? G : Y; hero.size = 64; }
+      if (v === 'care') { hero.chipShow = true; hero.chipT = 'WITH CARE'; hero.chipBd = 'rgba(248,200,28,.5)'; hero.chipC = Y; }
+      const iNo = nextWhere(curIdx + 1, s => !rowableV(s.verdict));
+      const iRow = nextWhere(curIdx + 1, s => s.verdict === 'row');
+      const iOk = nextWhere(curIdx + 1, s => rowableV(s.verdict));
+      if (v === 'row') {
+        let e = curIdx; while (e < LAST && slots[e + 1].verdict === 'row') e++;
+        hero.lines.push({ c: G, t: 'GREEN UNTIL ' + tstr(tmin(slots[e].t) + 30) });
+        if (iNo >= 0) hero.lines.push({ c: RED2, t: 'RED AT ' + slots[iNo].t + ' — ' + this.inFmt(tmin(slots[iNo].t) - n.nowMin) });
+        else hero.lines.push({ c: MUT, t: 'CLEAR TO ' + tstr(END + 30) });
+      } else if (v === 'care') {
+        if (iRow >= 0 && (iNo < 0 || iRow < iNo)) hero.lines.push({ c: G, t: 'GREEN AT ' + slots[iRow].t + ' — ' + this.inFmt(tmin(slots[iRow].t) - n.nowMin) });
+        else if (iRow >= 0) hero.lines.push({ c: G, t: 'GREEN AGAIN AT ' + slots[iRow].t });
+        if (iNo >= 0) hero.lines.push({ c: RED2, t: 'RED AT ' + slots[iNo].t + ' — ' + this.inFmt(tmin(slots[iNo].t) - n.nowMin) });
+        else hero.lines.push({ c: MUT, t: 'CLEAR TO ' + tstr(END + 30) });
+      } else {
+        if (iOk >= 0) hero.lines.push({ c: G, t: 'ROWABLE AT ' + slots[iOk].t + ' — ' + this.inFmt(tmin(slots[iOk].t) - n.nowMin) });
+        else if (idx < days.length - 1 && days[idx + 1].rowable.length) hero.lines.push({ c: G, t: 'ROWABLE TOMORROW ' + days[idx + 1].rowable[0][0] });
+        if (iRow >= 0) hero.lines.push({ c: MUT, t: 'IDEAL AT ' + slots[iRow].t });
+      }
+      if (rowableV(v) && cur.gate === 'AMBER') hero.lines.push({ c: Y, t: 'EMBANKMENT MAY FLOOD — TIME THE LAUNCH' });
+      if (day.det && n.nowMin < tmin(day.det) && v !== 'no' && v !== 'nolaunch') hero.lines.push({ c: Y, t: 'DETERIORATES FROM ' + day.det });
+    } else if (!n.stale && idx === n.todayIdx && !day.tideOnly && n.nowMin < T0) {
+      hero.label = 'TODAY · FIRST WINDOW';
+      hero.word = day.rowable.length ? day.rowable[0][0] : '—'; hero.c = '#FFFFFF'; hero.size = 56;
+      const st = day.rowable.length ? tmin(day.rowable[0][0]) : 0;
+      if (day.rowable.length) hero.lines.push({ c: G, t: 'ON THE WATER ' + this.inFmt(st - n.nowMin) });
+      if (day.ideal.length) hero.lines.push({ c: MUT, t: 'IDEAL ' + winsTxt(day.ideal) });
+      if (day.det) hero.lines.push({ c: Y, t: 'DETERIORATES FROM ' + day.det });
+    } else if (!n.stale && idx === n.todayIdx && !day.tideOnly && n.nowMin > END) {
+      hero.label = 'TODAY'; hero.word = 'DONE'; hero.c = '#FFFFFF'; hero.size = 56;
+      hero.lines.push({ c: MUT, t: 'BACK ON THE WATER TOMORROW' });
+      if (idx < days.length - 1 && days[idx + 1].rowable.length) hero.lines.push({ c: G, t: 'FIRST WINDOW ' + days[idx + 1].rowable[0][0] });
+    } else if (day.tideOnly) {
+      hero.label = 'PLAN · ' + day.weekday.toUpperCase();
+      hero.word = day.rowable.length ? day.rowable[0][0] : '—'; hero.c = '#FFFFFF'; hero.size = 56;
+      hero.chipShow = true; hero.chipT = 'TIDE ONLY'; hero.chipBd = 'rgba(255,255,255,.3)'; hero.chipC = '#C3CCD2';
+      if (day.rowable.length) hero.lines.push({ c: G, t: 'TIDE ' + winsTxt(day.rowable) });
+      hero.lines.push({ c: MUT, t: 'WIND UNKNOWN THIS FAR OUT — NO VERDICTS' });
+    } else {
+      hero.label = (autoTomorrow ? 'TOMORROW · ' : 'PLAN · ') + day.weekday.toUpperCase();
+      hero.word = day.rowable.length ? day.rowable[0][0] : '—'; hero.c = '#FFFFFF'; hero.size = 56;
+      hero.chipShow = true; hero.chipT = 'FIRST WINDOW'; hero.chipBd = 'rgba(255,255,255,.3)'; hero.chipC = '#C3CCD2';
+      if (day.ideal.length) hero.lines.push({ c: G, t: 'IDEAL ' + winsTxt(day.ideal) });
+      if (day.rowable.length) hero.lines.push({ c: MUT, t: 'ROWABLE ' + winsTxt(day.rowable) });
+      if (day.det) hero.lines.push({ c: Y, t: 'DETERIORATES FROM ' + day.det });
+    }
+
+    // ---------- ring ----------
+    const CX = 195, CY = 150, RA = 108;
+    const pol = (a, r) => { const rad = a * Math.PI / 180; return { x: r1(CX + r * Math.cos(rad)), y: r1(CY + r * Math.sin(rad)) }; };
+    const ang = m => -90 + (m - T0) / SPAN * 360;
+    const ring = {
+      arcs: slots.map((s, i) => {
+        const a0 = -90 + i * (360 / N) + 0.75, a1 = -90 + (i + 1) * (360 / N) - 0.75;
+        const p0 = pol(a0, RA), p1 = pol(a1, RA);
+        return { d: 'M' + p0.x + ',' + p0.y + ' A' + RA + ',' + RA + ' 0 0 1 ' + p1.x + ',' + p1.y, c: day.tideOnly ? dimL(s.tlEff) : vcol(s.verdict) };
+      }),
+      tlabels: [6, 9, 12, 15, 18].map(h => { const p = pol(ang(h * 60), 82); return { x: p.x, y: p.y + 3, t: String(h).padStart(2, '0') }; }),
+      evs: day.events.filter(e => { const m = tmin(e.time); return m >= 285 && m <= END - 15; }).map(e => {
+        const a = ang(tmin(e.time)), rad = a * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+        const pl = pol(a, 130);
+        return { x: pl.x, y: r1(pl.y + (s > .5 ? 9 : s < -.5 ? -3 : 3.5)), t: e.type + ' ' + e.time, a: c > .35 ? 'start' : c < -.35 ? 'end' : 'middle' };
+      }),
+      nowShow: isLive
+    };
+    if (isLive) { const n1 = pol(ang(n.nowMin), 93), n2 = pol(ang(n.nowMin), 123); ring.nx1 = n1.x; ring.ny1 = n1.y; ring.nx2 = n2.x; ring.ny2 = n2.y; }
+
+    // ---------- stats ----------
+    let statTideV = '', statTideC = G, statTideL = '', statWindV = '', statWindC = G, statWindL = '';
+    if (isLive) {
+      const nx = Math.min(LAST, curIdx + 1);
+      const f = Math.max(0, Math.min(1, (n.nowMin - tmin(cur.t)) / 30));
+      const hNow = cur.h + (slots[nx].h - cur.h) * f;
+      const gl = cur.phase === 'ebb' ? '▾' : cur.phase === 'flood' ? '▴' : '';
+      statTideV = hNow.toFixed(1) + ' M ' + gl; statTideC = lcol(cur.tl);
+      statTideL = 'TIDE · ' + (cur.phase === 'ebb' ? 'EBBING' : cur.phase === 'flood' ? 'FLOODING' : 'SLACK');
+      if (cur.gate) statTideL += ' · GATE ' + cur.gate;
+      if (cur.wind) {
+        statWindV = cur.wind.mph + ' MPH ' + cur.wind.dir; statWindC = lcol(cur.wl);
+        statWindL = 'WIND · GUST ' + cur.wind.gust + (cur.wind.wot ? ' · OVER TIDE' : '');
+      } else { statWindV = '—'; statWindC = DIM; statWindL = 'WIND · UNKNOWN'; }
+    }
+
+    // ---------- chart ----------
+    const evHs = day.events.map(e => e.h);
+    const slotHs = slots.map(s => s.h);
+    const hiH = Math.max(6.6, Math.max.apply(null, evHs.concat(slotHs)) + 0.2);
+    const loH = Math.min(0, Math.min.apply(null, evHs.concat(slotHs)));
+    const cx = m => r1(34 + (m - T0) / (END - T0) * 342), cy = h => r1(140 - (h - loH) / (hiH - loH) * 122);
+    const pts = slots.map(s => ({ x: cx(tmin(s.t)), y: cy(s.h) }));
+    const segs = [];
+    for (let i = 0; i < LAST; i++) {
+      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(LAST, i + 2)];
+      segs.push(' C' + r1(p1.x + (p2.x - p0.x) / 6) + ',' + r1(p1.y + (p2.y - p0.y) / 6) + ' ' + r1(p2.x - (p3.x - p1.x) / 6) + ',' + r1(p2.y - (p3.y - p1.y) / 6) + ' ' + p2.x + ',' + p2.y);
+    }
+    const lineD = 'M' + pts[0].x + ',' + pts[0].y + segs.join('');
+    const chart = {
+      lineD, areaD: lineD + ' L' + pts[LAST].x + ',140 L' + pts[0].x + ',140 Z',
+      tide: slots.map((s, i) => ({ x: r1(cx(T0 + i * 30) - 4.4), c: day.tideOnly ? dimL(s.tlEff) : lcol(s.tl) })),
+      wind: slots.map((s, i) => ({ x: r1(cx(T0 + i * 30) - 4.4), c: s.wl ? lcol(s.wl) : 'rgba(255,255,255,.06)' })),
+      axis: [6, 9, 12, 15, 18].map(h => ({ x: cx(h * 60), t: String(h).padStart(2, '0') + ':00' })),
+      ygrid: [0, 2, 4, 6].map(h => ({ y: cy(h), yl: cy(h) + 2.5, t: h + 'm' })),
+      evDots: day.events.filter(e => { const m = tmin(e.time); return m >= T0 && m <= END; }).map(e => ({ x: cx(tmin(e.time)), y: cy(e.h) })),
+      events: day.events.filter(e => { const m = tmin(e.time); return m >= 240 && m <= END + 30; }).map(e => {
+        const m = tmin(e.time); const xx = Math.max(36, Math.min(374, cx(m)));
+        return { x: xx, y: cy(e.h) - 9, t: e.type + ' ' + e.time + ' · ' + e.h.toFixed(1), a: m < T0 ? 'start' : m > END ? 'end' : 'middle' };
+      }),
+      nowShow: isLive
+    };
+    if (isLive) {
+      const nx = Math.min(LAST, curIdx + 1), f = Math.max(0, Math.min(1, (n.nowMin - tmin(cur.t)) / 30));
+      chart.nowX = cx(n.nowMin); chart.nowY = cy(cur.h + (slots[nx].h - cur.h) * f);
+    }
+
+    // ---------- sessions ----------
+    const slotAt = t => slots.findIndex(s => s.t === t);
+    let refIdx = -1;
+    if (isLive) refIdx = curIdx;
+    else if (!day.tideOnly && day.rowable.length) refIdx = slotAt(day.rowable[0][0]);
+    const ref = refIdx >= 0 ? slots[refIdx] : null;
+    const sess = { show: false };
+    if (ref && ref.sessions) {
+      sess.show = true;
+      sess.when = isLive ? 'LAUNCHING NOW · ' + tstr(n.nowMin) : 'LAUNCHING ' + ref.t;
+      const ORDER = ['Hammersmith', 'Corney', 'ULBC', 'Chiswick Br', 'Kew'];
+      const svcol = v => v === 'Row' ? G : v === 'Row (care)' ? Y : R;
+      sess.turns = ORDER.filter(k => ref.sessions[k]).map(k => {
+        const s2 = ref.sessions[k], c = svcol(s2.verdict), isBest = ref.best_turn === k;
+        const a = isBest ? '.65' : '.3';
+        return {
+          t: k.toUpperCase(), min: s2.duration_min + '′',
+          dot: c,
+          bg: isBest ? (c === G ? 'rgba(66,227,77,.15)' : c === Y ? 'rgba(248,200,28,.14)' : 'rgba(255,59,48,.13)') : 'transparent',
+          bd: c === G ? 'rgba(66,227,77,' + a + ')' : c === Y ? 'rgba(248,200,28,' + a + ')' : 'rgba(255,59,48,' + a + ')',
+          cl: c === G ? '#9BE3A6' : c === Y ? '#F8C81C' : '#FF8A80'
+        };
+      });
+      if (ref.best_turn && ref.sessions[ref.best_turn]) {
+        sess.bestT = 'BEST TURN — ' + ref.best_turn.toUpperCase() + ' · ' + ref.sessions[ref.best_turn].duration_min + ' MIN ROUND TRIP';
+        sess.bestC = G;
+      } else { sess.bestT = 'NO TURN ROWABLE IN ≤ 135 MIN FROM THIS LAUNCH'; sess.bestC = '#FF8A80'; }
+      const worst = ORDER.map(k => ref.sessions[k]).find(s2 => s2 && s2.worst_reach && s2.verdict !== 'Row');
+      if (worst) { sess.worstShow = true; sess.worstT = 'WORST REACH — ' + String(worst.worst_reach).toUpperCase().replace(/_/g, ' '); }
+      if (ref.conf) { sess.when += ' · ' + pct(ref.conf.p_rowable) + ' CONF'; }
+    }
+
+    // ---------- chips ----------
+    const chips = [];
+    if (day.tideOnly) {
+      day.rowable.forEach(w => chips.push({ t: 'TIDE ' + w[0] + '–' + w[1], bg: 'transparent', bd: 'rgba(66,227,77,.22)', cl: 'rgba(155,227,166,.65)' }));
+      chips.push({ t: 'TIDE ONLY — NO WIND YET', bg: 'transparent', bd: 'rgba(255,255,255,.14)', cl: DIM });
+    } else {
+      const confAt = t => { const i = slotAt(t); const c = i >= 0 && slots[i].conf; return c ? ' · ' + pct(c.p_rowable) : ''; };
+      day.ideal.forEach(w => chips.push({ t: 'IDEAL ' + w[0] + '–' + w[1] + confAt(w[0]), bg: 'rgba(66,227,77,.14)', bd: 'rgba(66,227,77,.55)', cl: '#7BF08A' }));
+      day.rowable.forEach(w => chips.push({ t: w[0] + '–' + w[1] + confAt(w[0]), bg: 'transparent', bd: 'rgba(66,227,77,.32)', cl: '#9BE3A6' }));
+      let i0 = -1;
+      for (let i = 0; i <= N; i++) {
+        const isNo = i < N && !rowableV(slots[i].verdict);
+        if (isNo && i0 < 0) i0 = i;
+        if (!isNo && i0 >= 0) { chips.push({ t: '✕ ' + slots[i0].t + '–' + tstr(tmin(slots[i - 1].t) + 30), bg: 'transparent', bd: 'rgba(255,59,48,.4)', cl: '#FF8A80' }); i0 = -1; }
+      }
+    }
+
+    // ---------- table ----------
+    const showNotes = this.props.showNotes ?? true;
+    const mkRow = s => {
+      const gateNote = (s.gate && !/embank/i.test(s.note)) ? ('HW gate ' + s.gate + ' — ' + (s.gate === 'RED' ? 'embankment flooded: no launching or landing' : 'embankment may flood: time the launch, wet feet')) : '';
+      const note = [gateNote, s.note].filter(Boolean).join('; ');
+      return {
+        t: s.t, tCol: (isLive && s.t === cur.t) ? '#FFFFFF' : (isLive && tmin(s.t) < n.nowMin) ? '#8A959D' : '#FFFFFF',
+        h: s.h.toFixed(1),
+        gl: s.phase === 'ebb' ? '▾' : s.phase === 'flood' ? '▴' : '◦',
+        pwU: s.phase === 'ebb' ? 'EBB' : s.phase === 'flood' ? 'FLOOD' : 'SLACK',
+        tlC: s.tideOnly ? dimL(s.tlEff) : lcol(s.tl),
+        hasWind: !!s.wind, noWind: !s.wind,
+        wlC: s.wl ? lcol(s.wl) : DIM, rot: s.wind ? s.wind.deg + 180 : 0,
+        mph: s.wind ? s.wind.mph : '', dir: s.wind ? s.wind.dir : '', gust: s.wind ? s.wind.gust : '',
+        vW: s.tideOnly ? 'TIDE ONLY' : s.verdict === 'row' ? 'ROW' : s.verdict === 'care' ? 'CARE' : s.verdict === 'nolaunch' ? 'NO LAUNCH' : 'DON’T',
+        vC: s.tideOnly ? DIM : vcol(s.verdict),
+        vDot: s.tideOnly ? 'rgba(255,255,255,.14)' : vcol(s.verdict),
+        tint: s.tideOnly ? 'transparent' : s.verdict === 'row' ? 'rgba(66,227,77,.04)' : s.verdict === 'care' ? 'rgba(248,200,28,.04)' : 'rgba(255,59,48,.05)',
+        op: s.tideOnly ? .55 : 1,
+        note, showNote: !!note && showNotes
+      };
+    };
+    const collapse = isLive && curIdx > 1 && !this.state.earlierOpen;
+    const tbl = {
+      rows: (collapse ? slots.slice(curIdx) : slots).map(mkRow),
+      toggleShow: isLive && curIdx > 1,
+      toggleText: collapse ? '▸ EARLIER — 04:30 TO ' + slots[curIdx - 1].t : '▾ HIDE EARLIER SLOTS',
+      onToggle: () => this.setState(s => ({ earlierOpen: !s.earlierOpen }))
+    };
+
+    // ---------- flag ----------
+    const flag = { show: false };
+    {
+      const lf = this.liveFlag;
+      const snap = this.data.flag;
+      let cur2 = null, latestLevel = null, latestTime = '', nextFlag = null, nextAt = '', src = '';
+      if (lf) {
+        cur2 = lf.current.flag; latestLevel = lf.latest.level_m; latestTime = this.hm(lf.latest.time);
+        nextFlag = lf.next.flag_estimate; nextAt = this.hm(lf.next.at); src = 'LIVE EA · ' + latestTime;
+      } else if (snap) {
+        cur2 = snap.current && snap.current.flag; latestLevel = snap.latest && snap.latest.level_m; latestTime = this.hm(snap.latest && snap.latest.time);
+        nextFlag = snap.next && snap.next.flag_estimate; nextAt = this.hm(snap.next && snap.next.at); src = 'SNAPSHOT · ' + this.hm(snap.fetched);
+      }
+      if (cur2) {
+        flag.show = true; flag.cur = cur2; flag.src = src;
+        const FC = {
+          BLACK: { bg: '#0A0B0D', bd: 'rgba(255,255,255,.45)', cl: '#FFFFFF' },
+          GREEN: { bg: 'rgba(66,227,77,.15)', bd: 'rgba(66,227,77,.55)', cl: '#7BF08A' },
+          YELLOW: { bg: 'rgba(248,200,28,.15)', bd: 'rgba(248,200,28,.55)', cl: '#F8C81C' },
+          RED: { bg: 'rgba(255,59,48,.15)', bd: 'rgba(255,59,48,.5)', cl: '#FF8A80' }
+        }[cur2] || { bg: 'transparent', bd: 'rgba(255,255,255,.3)', cl: '#FFFFFF' };
+        flag.bg = FC.bg; flag.bd = FC.bd; flag.cl = FC.cl;
+        flag.level = (latestLevel != null ? latestLevel.toFixed(2) + ' m' : '—') + (latestTime ? ' · ' + latestTime : '');
+        flag.next = nextFlag ? 'NEXT SETTING ' + nextAt + ' — TRENDING ' + nextFlag : '';
+        flag.action = cur2 === 'BLACK' ? 'BLACK — don\'t boat at low tide. Mid-tide and high-tide outings are unaffected; plan around LW.'
+          : cur2 === 'RED' ? 'RED — CRSA clearance required; low flood only.'
+          : cur2 === 'YELLOW' ? 'YELLOW — strong ebb stream; extra caution, experienced crews.'
+          : 'GREEN — normal conditions; caution and good lookout as always.';
+      }
+    }
+
+    // ---------- month ----------
+    const monthRows = days.map((d, i) => ({
+      lab: d.dayShort + ' ' + d.dateShort.split(' ')[0],
+      sub: i === n.todayIdx && !n.stale ? 'TODAY' : d.tideOnly ? 'TIDE ONLY' : '',
+      lc: i === n.todayIdx && !n.stale ? G : d.tideOnly ? MUT : '#FFFFFF',
+      bg: i === idx ? 'rgba(255,255,255,.05)' : 'transparent',
+      op: d.tideOnly ? .6 : 1,
+      segs: d.slots.map(s => ({ c: d.tideOnly ? dimL(s.tlEff) : vcol(s.verdict) })),
+      best: (d.best ? 'BEST ' + d.best : '—') + (d.conf != null ? ' · ' + pct(d.conf) : ''),
+      idealC: d.tideOnly ? '#5F868D' : G,
+      idealTxt: d.tideOnly ? (d.rowable.length ? 'TIDE ' + d.rowable.map(w => w[0] + '–' + w[1]).join(' · ') : '') : (d.ideal.length ? 'IDEAL ' + d.ideal[0][0] + '–' + d.ideal[0][1] : ''),
+      onTap: () => this.setState({ dayIdx: i, view: 'today', earlierOpen: false })
+    }));
+
+    // ---------- chrome ----------
+    const view = this.state.view;
+    const staleH = Math.floor((Date.now() - new Date(this.data.generated).getTime()) / 3600e3);
+    const parts = [];
+    if (this.state.offline) parts.push('OFFLINE — SHOWING SAVED GRID');
+    if (staleH >= 13) parts.push('GRID IS ' + staleH + 'H OLD — PIPELINE MAY BE FAILING');
+    if (n.stale) parts.push('TODAY NOT IN GRID — SHOWING ' + days[0].dayShort.toUpperCase() + ' ' + days[0].dateShort.toUpperCase());
+    else if (autoTomorrow && view === 'today') parts.push("TODAY'S DONE — SHOWING TOMORROW");
+    const bannerShow = parts.length > 0, bannerText = parts.join(' · ');
+
+    return {
+      loadFail: false,
+      dayPill: day.dayShort.toUpperCase() + ' ' + day.dateShort.toUpperCase(),
+      dayName: day.weekday.toUpperCase() + (day.tideOnly ? ' · TIDE ONLY' : ''),
+      prevC: idx > 0 ? '#98A2AB' : '#2E353A', nextC: idx < days.length - 1 ? '#98A2AB' : '#2E353A',
+      onPrev: () => this.stepDay(-1), onNext: () => this.stepDay(1),
+      onPill: () => this.setState({ view: 'month' }),
+      isToday: view === 'today', isMonth: view === 'month', isInfo: view === 'info',
+      tabTodayC: view === 'today' ? '#FFFFFF' : '#5F6B73', tabTodayB: view === 'today' ? '2px solid #FFFFFF' : '2px solid transparent',
+      tabMonthC: view === 'month' ? '#FFFFFF' : '#5F6B73', tabMonthB: view === 'month' ? '2px solid #FFFFFF' : '2px solid transparent',
+      tabInfoC: view === 'info' ? '#FFFFFF' : '#5F6B73', tabInfoB: view === 'info' ? '2px solid #FFFFFF' : '2px solid transparent',
+      onTabToday: () => this.setState({ view: 'today' }),
+      onTabMonth: () => this.setState({ view: 'month' }),
+      onTabInfo: () => this.setState({ view: 'info' }),
+      bannerShow, bannerText,
+      hero, ring, statsShow: isLive, statTideV, statTideC, statTideL, statWindV, statWindC, statWindL,
+      hwlw: day.events.map(e => ({ ty: e.type, tyC: e.type === 'HW' ? '#F8C81C' : '#4FB3C9', t: e.time, h: e.h.toFixed(1) + ' m' })),
+      chart, chips, tbl, sess, flag, monthRows,
+      monthHead: 'NEXT ' + days.length + ' DAYS · PUTNEY',
+      windEnd: this.windEnd, genNote: this.genNote, rangeNote: this.rangeNote,
+      onTS: (e) => { this._tx = e.touches[0].clientX; this._ty = e.touches[0].clientY; },
+      onTE: (e) => {
+        if (this._tx == null) return;
+        const dx = e.changedTouches[0].clientX - this._tx, dy = e.changedTouches[0].clientY - this._ty;
+        this._tx = null;
+        if (Math.abs(dx) > 55 && Math.abs(dx) > 2 * Math.abs(dy)) this.stepDay(dx < 0 ? 1 : -1);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

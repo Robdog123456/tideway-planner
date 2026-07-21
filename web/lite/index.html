@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tideway</title>
+<meta name="description" content="Can I row now? Putney tide, wind and flag — v2 per-reach session model.">
+<meta name="theme-color" content="#0D1B2A">
+
+<!-- PWA / iOS home-screen -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tideway">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- topbar: wave logo · ‹ DAY › pill · timezone tag -->
+  <div class="topbar">
+    <svg class="logo" viewBox="0 0 26 16" fill="none" aria-hidden="true">
+      <path d="M1 8 Q4.5 3 8 8 T15 8 T22 8 T29 8" stroke="#E8EEF2" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M1 13 Q4.5 8 8 13 T15 13 T22 13" stroke="#1B7A8C" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <div class="daynav">
+      <button id="prevDay" aria-label="Previous day">&#8249;</button>
+      <div class="day num" id="dayLabel">&nbsp;</div>
+      <button id="nextDay" aria-label="Next day">&#8250;</button>
+    </div>
+    <div class="tz" id="tzLabel">BST</div>
+  </div>
+
+  <!-- tabs -->
+  <div class="tabs">
+    <button id="tabToday" class="active">TODAY</button>
+    <button id="tabMonth">MONTH</button>
+    <button id="tabInfo">INFO</button>
+  </div>
+
+  <!-- staleness / offline banner -->
+  <div class="banner" id="banner"></div>
+
+  <!-- ============ TODAY view ============ -->
+  <div id="viewToday">
+
+    <div class="hero">
+      <svg id="ring" viewBox="0 0 390 300" aria-hidden="true"></svg>
+      <div class="center">
+        <div class="cap" id="heroCap">&nbsp;</div>
+        <div class="word num" id="heroWord">&nbsp;</div>
+        <div class="chip-care" id="heroChip" hidden>WITH CARE</div>
+        <div class="status" id="heroStatus"></div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="v num" id="statTide">–</div><div class="lbl">TIDE · PUTNEY</div></div>
+      <div class="stat"><div class="v num" id="statWind">–</div><div class="lbl">WIND · SUSTAINED</div></div>
+      <div class="stat"><div class="v num" id="statFlag">–</div><div class="lbl">FLAG · COMPUTED</div></div>
+    </div>
+
+    <div class="panel" id="turnsPanel">
+      <h3 id="turnsTitle">HOW FAR CAN I GO</h3>
+      <div class="turns" id="turns"></div>
+      <div class="turnmeta" id="turnsMeta"></div>
+    </div>
+
+    <div class="hwlw" id="hwlw"></div>
+
+    <div class="chart"><svg id="curve" viewBox="0 0 390 236"></svg></div>
+
+    <div class="panel">
+      <h3 id="windowsTitle">WINDOWS</h3>
+      <div class="windows" id="windows"></div>
+    </div>
+
+    <div class="slots" id="slots"></div>
+
+    <div class="panel" id="flagPanel">
+      <h3>EBB FLAG &amp; LIVE LEVEL — RICHMOND</h3>
+      <div class="flagrow">
+        <div class="flagchip num" id="flagChip">–</div>
+        <div class="flagmeta" id="flagMeta">…</div>
+      </div>
+      <div class="flagaction" id="flagAction"></div>
+    </div>
+
+    <div class="panel">
+      <h3>WHAT MUST I DO — LRC</h3>
+      <ul class="musts">
+        <li id="mustFlag">Check the flag on the day.</li>
+        <li>Fill in the outing log before boating; phone in the pouch.</li>
+        <li>Four white lights after dark.</li>
+        <li>Unaccompanied as a Tideway Expert sculler — my own risk assessment, every time.</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- ============ MONTH view ============ -->
+  <div id="viewMonth" class="month" hidden></div>
+
+  <!-- ============ INFO view ============ -->
+  <div id="viewInfo" hidden>
+
+    <div class="panel">
+      <h3>HOW TO READ IT</h3>
+      <div class="how">
+        <i class="sw g"></i><div><b>ROW</b><span>tide and wind both green for the whole session.</span></div>
+        <i class="sw a"></i><div><b>ROW WITH CARE</b><span>something is amber — shorter session, watch the worst reach.</span></div>
+        <i class="sw r"></i><div><b>DON'T ROW</b><span>low-water band or wind red.</span></div>
+        <i class="sw t"></i><div><b>NO LAUNCH</b><span>Putney Embankment covered (≥ 6.30 m). Afloat is fine; boating isn't.</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>TIDE LIGHT — THE BLACK-FLAG BAND</h3>
+      <p>RED from LW−1h to LW+2h, AMBER flanks to −2h/+2:30. This is a <b>club rule</b>
+      (LRC black-flag policy), not physics — I've been afloat at 0.67 m Putney. The band
+      stays because the rule stays.</p>
+    </div>
+
+    <div class="panel">
+      <h3>WIND LIGHT — SUSTAINED SPEED</h3>
+      <p>GREEN ≤ 8 mph · AMBER 9–13 · RED &gt; 13, <b>sustained</b>, not gusts — gusts are
+      info-only until 32 mph. Wind-over-tide escalates amber to red per reach when the wind
+      opposes the local stream (±50°) at ≥ 13 mph sustained.</p>
+    </div>
+
+    <div class="panel">
+      <h3>SESSIONS — THE V2 MODEL</h3>
+      <p>The boat is simulated out-and-back through six reaches whose axes swing 338°→231°;
+      conditions are scored where the boat actually is, when it's there. Stream fitted from
+      my own GPS: flood +0.6–1.0 m/s, early ebb −0.9–1.4, late ebb −0.6–0.8.
+      Backtested 29/29 real sessions.</p>
+    </div>
+
+    <div class="panel">
+      <h3>EMBANKMENT GATE — TWO TIERS (LAUNCH/LANDING ONLY)</h3>
+      <p>AMBER ≥ 5.90 m Putney: parts of the road may flood around HW on big springs —
+      time the launch, wet feet possible. RED ≥ 6.30 m: above anything I've ever boated
+      (max 6.25 m). Rowing through HW afloat is unaffected.</p>
+    </div>
+
+    <div class="panel">
+      <h3>THE FLAG — COMPUTED, NOT JUDGED</h3>
+      <p>At 06:00/18:00 the <b>lowest</b> Richmond reading of the preceding 12 h sets it:
+      ≥ 2.6 m RED · 1.7–2.6 YELLOW · 0–1.7 GREEN · &lt; 0 BLACK.</p>
+      <p>BLACK — don't boat at low tide. RED — CRSA clearance, low flood only.
+      GREEN — caution and good lookout.</p>
+      <p class="foot">Cross-check on the day:
+      <a href="https://pla.co.uk/ebb-tide-flag-warning" target="_blank" rel="noopener">pla.co.uk/ebb-tide-flag-warning</a></p>
+    </div>
+
+    <div class="panel">
+      <h3>HONESTY LIMITS — NOT MODELLED</h3>
+      <p>Tides are knowable ~a month out; wind is not. Beyond ~14 days the grid is
+      <b>tide-only</b> — no verdicts. Ensemble confidence reaches ~7 days.
+      Chop, bridge-arch gust acceleration and springs/neaps stream scaling are noted
+      in the Code but not modelled. Wind is model output at 10 m, not river level.</p>
+    </div>
+
+    <div class="panel">
+      <h3>SOURCES</h3>
+      <p class="foot">PLA tide predictions (London Bridge 0113 → Putney offsets HW +31′/−1.0 m,
+      LW +98′/−0.5 m) · Open-Meteo forecast + 40-member ICON ensemble · EA station 0009
+      Richmond (tidal level, mAOD) · PLA Tideway Code · LRC Water Safety Plan.
+      Grid rebuilt every 6 h by GitHub Actions; verdicts computed in Python, never in this app.</p>
+    </div>
+
+  </div>
+
+  <div class="offline-note" id="genNote"></div>
+</div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
