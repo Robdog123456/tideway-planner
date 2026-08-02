@@ -1,0 +1,96 @@
+name: pla-probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Compute today's gauge_data URL (UTC, tz=1/GMT path)
+        run: |
+          echo "GAUGE_URL=https://tidepredictions.pla.co.uk/gauge_data/0113/$(date -u +%Y)/$(date -u +%-m)/$(date -u +%-d)/1/1/" >> "$GITHUB_ENV"
+
+      - name: "Probe 1: urllib baseline (current pipeline headers)"
+        continue-on-error: true
+        run: |
+          python3 - "$GAUGE_URL" <<'PYEOF'
+          import sys, urllib.request, urllib.error
+          url = sys.argv[1]
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+              "Referer": "https://tidepredictions.pla.co.uk/",
+          }
+          req = urllib.request.Request(url, headers=headers)
+          try:
+              with urllib.request.urlopen(req, timeout=20) as resp:
+                  print("PROBE1 STATUS:", resp.status)
+                  for k, v in resp.headers.items():
+                      print(f"PROBE1 HDR {k}: {v}")
+                  print("PROBE1 BODY_PREVIEW:", resp.read(200))
+          except urllib.error.HTTPError as e:
+              print("PROBE1 STATUS:", e.code)
+              for k, v in e.headers.items():
+                  print(f"PROBE1 HDR {k}: {v}")
+              print("PROBE1 BODY_PREVIEW:", e.read(200))
+          except Exception as e:
+              print("PROBE1 ERROR:", repr(e))
+          PYEOF
+
+      - name: "Probe 2: curl full modern-Chrome header set"
+        continue-on-error: true
+        run: |
+          set +e
+          curl -sD - -o /tmp/probe2_body.json \
+            "$GAUGE_URL" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            -H "Accept: application/json, text/plain, */*" \
+            -H "Accept-Language: en-GB,en;q=0.9" \
+            -H "Accept-Encoding: gzip, deflate, br" \
+            -H "Referer: https://tidepredictions.pla.co.uk/" \
+            -H "sec-ch-ua: \"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"" \
+            -H "sec-ch-ua-mobile: ?0" \
+            -H "sec-ch-ua-platform: \"Windows\"" \
+            -H "sec-fetch-dest: empty" \
+            -H "sec-fetch-mode: cors" \
+            -H "sec-fetch-site: same-origin" \
+            --compressed --max-time 20
+          echo "PROBE2 BODY_BYTES: $(wc -c < /tmp/probe2_body.json)"
+          echo "PROBE2 BODY_PREVIEW:"
+          head -c 200 /tmp/probe2_body.json
+          echo
+          exit 0
+
+      - name: "Probe 3: homepage warm-up then data URL with cookies"
+        continue-on-error: true
+        run: |
+          set +e
+          COOKIE_JAR=$(mktemp)
+          echo "--- fetching homepage to collect cookies ---"
+          curl -sD - -o /tmp/probe3_home.html -c "$COOKIE_JAR" \
+            "https://tidepredictions.pla.co.uk/" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            --max-time 20
+          echo "--- cookie jar contents ---"
+          cat "$COOKIE_JAR"
+          echo "--- data request reusing cookies ---"
+          curl -sD - -o /tmp/probe3_body.json -b "$COOKIE_JAR" \
+            "$GAUGE_URL" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            -H "Referer: https://tidepredictions.pla.co.uk/" \
+            --max-time 20
+          echo "PROBE3 BODY_BYTES: $(wc -c < /tmp/probe3_body.json)"
+          echo "PROBE3 BODY_PREVIEW:"
+          head -c 200 /tmp/probe3_body.json
+          echo
+          exit 0
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "All 3 probes attempted against $GAUGE_URL — see logs above for HTTP status + headers per probe."
+          echo "This workflow always exits 0 regardless of probe outcomes (probe-only, never gates a real build)."
