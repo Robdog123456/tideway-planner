@@ -24,13 +24,54 @@ import glob
 import json
 import os
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from tideway_lib import fetch_gauge, load_listing, find_extrema
 from fetch_tides import LB, pla_tz
 
 SCRATCH = "../local-data/prefetch-tides"   # Mac-only, gitignored via local-data/
 OUT = "data/tides_extrema.json"
+LONDON = ZoneInfo("Europe/London")
+
+
+def load_minutes(paths):
+    """Minute series from PLA day files, normalised to London wall-clock.
+
+    Beyond the current calendar year PLA leaves the tabular `listing` empty
+    but still serves the same minute predictions in `graph_data.graphs`
+    (day-series of {x: epoch, y: height}, epochs encoded as wall-clock in
+    the REQUESTED tz pretending to be UTC). So: listing when populated,
+    graphs otherwise. Each file contributes only its own named day (every
+    day has its own file here, unlike the live cache's 2-day spillover),
+    timestamps are decoded to physical time via the day's request tz
+    (pla_tz), then rendered to naive Europe/London wall-clock — which keeps
+    the series continuous across both DST seams instead of fabricating a
+    jump (and therefore fake extrema) at the changeover midnights.
+    """
+    seen = {}
+    for p in paths:
+        day = date.fromisoformat(os.path.basename(p)[3:13])
+        off = timedelta(hours=1 if pla_tz(day) == 2 else 0)
+        with open(p) as f:
+            d = json.load(f)
+        if d.get("listing"):
+            pts = ((datetime.strptime(r["date"] + " " + r["time"],
+                                      "%d/%m/%Y %H:%M"), float(r["height"]))
+                   for r in d["listing"])
+        else:
+            pts = ((datetime.fromtimestamp(pt["x"], timezone.utc)
+                    .replace(tzinfo=None), float(pt["y"]))
+                   for series in d.get("graph_data", {}).get("graphs", {})
+                   .values() for pt in series)
+        for naive, h in pts:
+            if naive.date() != day:
+                continue                     # own-day filter (tz-mix guard)
+            phys = naive - off               # request-tz wall-clock -> UTC
+            wall = phys.replace(tzinfo=timezone.utc).astimezone(LONDON) \
+                       .replace(tzinfo=None)
+            seen[wall] = h
+    return sorted(seen.items())
 
 
 def fetch_missing(days):
@@ -66,7 +107,7 @@ def distill(wanted):
     keep = {f"lb_{d.isoformat()}.json" for d in wanted}
     paths = sorted(p for p in glob.glob(f"{SCRATCH}/lb_*.json")
                    if os.path.basename(p) in keep)
-    events = find_extrema(load_listing(paths))[1:-1]   # trim edge artifacts
+    events = find_extrema(load_minutes(paths))[1:-1]   # trim edge artifacts
 
     for a, b in zip(events, events[1:]):
         gap_h = (b[0] - a[0]).total_seconds() / 3600
