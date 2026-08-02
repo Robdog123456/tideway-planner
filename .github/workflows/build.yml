@@ -10,7 +10,12 @@
 #     stays live, and GitHub emails Rob about the failed workflow;
 #   - tides are cached 35 days ahead in git, so even weeks of failed PLA
 #     fetches cannot break the app inside the horizon (wind degrades first,
-#     honestly, via tide-only slots);
+#     honestly, via tide-only slots). Since 2026-07-31 PLA 403s runner IPs:
+#     the cache is topped up daily from Rob's Mac (scripts/mac_tide_push.sh,
+#     launchd com.tideway.tides — residential egress passes the bot-wall);
+#     fetch_tides only hard-fails under 7 d of coverage, and the
+#     tide-horizon-watch job reddens the run (→ email) under 28 d WITHOUT
+#     blocking deploy — a tide outage must never freeze wind+grid again;
 #   - the data commit each run doubles as the keepalive that stops GitHub
 #     disabling the schedule after 60 days of repo inactivity.
 
@@ -100,3 +105,16 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Reddens the run (→ failure email) when the tide cache covers <28 days,
+  # while build+deploy publish off whatever window remains. Runs against the
+  # triggering commit: the build job never adds tide files (PLA blocks runner
+  # IPs), so pre-run tide state is the post-run tide state.
+  tide-horizon-watch:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tide horizon >= 28 d
+        working-directory: pipeline
+        run: python3 fetch_tides.py --coverage-only

@@ -22,8 +22,13 @@ boring and cache-friendly:
     doesn't shift the listing by an hour mid-window.
   - old files are pruned (before yesterday) to keep the committed cache small.
   - the run FAILS (exit 1) only if the on-disk window covers less than
-    MIN_DAYS_AHEAD days — one failed request never kills a run, a month of
-    them shows up as a failing workflow email.
+    MIN_DAYS_HARD days (the grid itself is about to run dry). A window below
+    MIN_DAYS_AHEAD is a WARNING only: publish must continue off the cached
+    tides (PLA blocked GitHub-runner IPs on 2026-07-31 and froze the whole
+    app for 2.5 days because this gate sat in front of wind+grid+deploy).
+    The tide-horizon-watch job in build.yml runs --coverage-only, which DOES
+    exit 1 below MIN_DAYS_AHEAD — that reddens the run (failure email)
+    without blocking the deploy that already happened.
 """
 import argparse
 import csv
@@ -38,7 +43,8 @@ from tideway_lib import fetch_gauge
 RAW = "raw/tides"        # historical (gitignored, backtest only)
 LIVE = "data/tides"      # rolling live cache (committed)
 LB = "0113"              # London Bridge gauge
-MIN_DAYS_AHEAD = 28      # live gate: must cover at least this far forward
+MIN_DAYS_AHEAD = 28      # watch horizon: below this the run goes red (email)
+MIN_DAYS_HARD = 7        # hard gate: below this the fetch step itself fails
 LONDON = ZoneInfo("Europe/London")
 
 
@@ -88,18 +94,36 @@ def live(days_ahead):
             os.remove(p)
             print(f"  pruned {p}")
 
-    # coverage gate: every day up to MIN_DAYS_AHEAD must be covered by its
-    # own file or its predecessor's (each file carries ~2 days of minutes)
+    report_coverage(today)
+
+
+def uncovered(today, days_ahead):
+    """Days in the next `days_ahead` not covered by their own file or their
+    predecessor's (each file carries ~2 days of minutes)."""
     have = {os.path.basename(p)[3:13] for p in glob.glob(f"{LIVE}/lb_*.json")}
-    missing = [d for d in (today + timedelta(days=n)
-                           for n in range(MIN_DAYS_AHEAD))
-               if d.isoformat() not in have
-               and (d - timedelta(days=1)).isoformat() not in have]
-    print(f"coverage: {len(have)} files on disk, "
+    return len(have), [d for d in (today + timedelta(days=n)
+                                   for n in range(days_ahead))
+                       if d.isoformat() not in have
+                       and (d - timedelta(days=1)).isoformat() not in have]
+
+
+def report_coverage(today, strict=False):
+    """Soft warning below MIN_DAYS_AHEAD; exit 1 below MIN_DAYS_HARD —
+    or below MIN_DAYS_AHEAD when strict (the tide-horizon-watch job)."""
+    nfiles, missing = uncovered(today, MIN_DAYS_AHEAD)
+    _, missing_hard = uncovered(today, MIN_DAYS_HARD)
+    print(f"coverage: {nfiles} files on disk, "
           f"{len(missing)} uncovered days in the next {MIN_DAYS_AHEAD}")
-    if missing:
-        print(f"COVERAGE GATE FAILED — first uncovered day: {missing[0]}")
+    if missing_hard:
+        print(f"COVERAGE GATE FAILED (hard, <{MIN_DAYS_HARD} d) — "
+              f"first uncovered day: {missing_hard[0]}")
         raise SystemExit(1)
+    if missing:
+        print(f"COVERAGE WARNING — window below {MIN_DAYS_AHEAD} d "
+              f"(first gap {missing[0]}); publishing continues on the "
+              f"cached tides, tide-horizon-watch turns the run red")
+        if strict:
+            raise SystemExit(1)
 
 
 # ---------------------------------------------- historical mode (unchanged)
@@ -138,5 +162,13 @@ if __name__ == "__main__":
                     help="rolling forward window for the scheduled pipeline")
     ap.add_argument("--days", type=int, default=35,
                     help="live mode: days ahead to cover (default 35)")
+    ap.add_argument("--coverage-only", action="store_true",
+                    help="no network: report cache coverage, exit 1 below "
+                         f"the {MIN_DAYS_AHEAD} d watch horizon")
     a = ap.parse_args()
-    live(a.days) if a.live else historical()
+    if a.coverage_only:
+        report_coverage(date.today(), strict=True)
+    elif a.live:
+        live(a.days)
+    else:
+        historical()
