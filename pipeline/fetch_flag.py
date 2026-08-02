@@ -60,12 +60,23 @@ def band(v):
 
 
 def fetch_readings(hours=36):
-    """[(aware datetime UTC, metres)] for the last `hours`, oldest first."""
+    """[(aware datetime UTC, metres)] for the last `hours`, oldest first.
+
+    One retry with a generous timeout: EA has observed slow spells
+    (read/handshake timeouts on 2026-08-02) where a second attempt lands."""
     since = (datetime.now(timezone.utc) - timedelta(hours=hours))
     url = (f"{EA}?parameter=level&_sorted"
            f"&since={since.strftime('%Y-%m-%dT%H:%M:%SZ')}")
-    with urllib.request.urlopen(url, timeout=30) as r:
-        items = json.loads(r.read().decode())["items"]
+    import time
+    for attempt in (1, 2):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                items = json.loads(r.read().decode())["items"]
+            break
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(15)
     out = []
     for it in items:
         t = datetime.strptime(it["dateTime"], "%Y-%m-%dT%H:%M:%SZ")
