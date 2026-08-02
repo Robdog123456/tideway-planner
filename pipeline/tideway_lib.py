@@ -16,6 +16,7 @@ Europe/London wall-clock.
 """
 import json
 import math
+import os
 import urllib.request
 from datetime import datetime, timedelta
 
@@ -116,6 +117,37 @@ def find_extrema(series):
             continue
         cleaned.append(e)
     return cleaned
+
+
+def load_lb_extrema(paths, extrema_file="data/tides_extrema.json"):
+    """London Bridge HW/LW events: minute-file distillation ∪ the prefetched
+    year (data/tides_extrema.json, written by prefetch_tides.py on the Mac —
+    PLA 403s GitHub-runner IPs since 2026-07-31, so CI fetches nothing).
+
+    Minute listings (historical archives + any live cache) distill through
+    find_extrema exactly as they always have; the prefetch file extends the
+    horizon. Where both cover a day the numbers are identical (same source,
+    same code) — overlap duplicates collapse with find_extrema's own 3 h
+    same-type rule, keeping the more extreme event.
+    """
+    events = find_extrema(load_listing(paths)) if paths else []
+    if extrema_file and os.path.exists(extrema_file):
+        with open(extrema_file) as f:
+            pre = json.load(f)["events"]
+        events += [[datetime.fromisoformat(e["t"]), e["h"], e["type"]]
+                   for e in pre]
+        events.sort(key=lambda e: e[0])
+        merged = []
+        for e in events:
+            if merged and e[2] == merged[-1][2] \
+               and (e[0] - merged[-1][0]).total_seconds() < 3 * 3600:
+                if (e[2] == "HW" and e[1] > merged[-1][1]) or \
+                   (e[2] == "LW" and e[1] < merged[-1][1]):
+                    merged[-1] = e
+                continue
+            merged.append(e)
+        events = merged
+    return events
 
 
 def to_putney(extrema):

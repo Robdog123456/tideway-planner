@@ -30,7 +30,7 @@ import math
 import os
 from datetime import datetime, timedelta, date
 
-from tideway_lib import (load_listing, find_extrema, to_putney,
+from tideway_lib import (load_lb_extrema, to_putney,
                          load_wind, wind_at, ang_diff,
                          HW_AMBER_M, HW_RED_M)
 
@@ -62,9 +62,7 @@ def load_tides():
              glob.glob("raw/tides/lb_*.json") + glob.glob("../lb_days/lb_*.json")
              + glob.glob("data/tides/lb_*.json")
              if "fresh" not in p and "test" not in p]
-    series = load_listing(paths)
-    extrema = find_extrema(series)
-    return to_putney(extrema)
+    return to_putney(load_lb_extrema(paths))
 
 
 def load_wind_series(wind_file=None):

@@ -12,8 +12,12 @@ Two modes:
                                     # a rolling window today-1 .. today+35,
                                     # one file per day -> data/tides/
 
-Live mode is what GitHub Actions runs every 6 hours. It is deliberately
-boring and cache-friendly:
+Live mode is what GitHub Actions runs every 6 hours. Since 2026-08-02 the
+horizon normally comes entirely from data/tides_extrema.json (a year of
+PLA extrema prefetched by prefetch_tides.py on the Mac — PLA 403s
+GitHub-runner IPs), so a CI run fetches NOTHING and just prunes + reports
+coverage. The fetch path below remains for days outside the prefetched
+span. It is deliberately boring and cache-friendly:
   - PLA predictions are astronomical and STABLE (a re-pull is byte-identical),
     so a day already on disk is never fetched again — after the first backfill
     a normal run makes only 1-2 requests (the new day at the horizon).
@@ -42,6 +46,7 @@ from tideway_lib import fetch_gauge
 
 RAW = "raw/tides"        # historical (gitignored, backtest only)
 LIVE = "data/tides"      # rolling live cache (committed)
+EXTREMA = "data/tides_extrema.json"   # year-ahead prefetch (prefetch_tides.py)
 LB = "0113"              # London Bridge gauge
 MIN_DAYS_AHEAD = 28      # watch horizon: below this the run goes red (email)
 MIN_DAYS_HARD = 7        # hard gate: below this the fetch step itself fails
@@ -53,6 +58,23 @@ def pla_tz(day):
     offset = datetime(day.year, day.month, day.day, 12,
                       tzinfo=LONDON).utcoffset()
     return 2 if offset == timedelta(hours=1) else 1
+
+
+def extrema_span():
+    """(start, end) datetimes of the prefetched extrema file, or None."""
+    if not os.path.exists(EXTREMA):
+        return None
+    with open(EXTREMA) as f:
+        s = json.load(f)["span"]
+    return datetime.fromisoformat(s[0]), datetime.fromisoformat(s[1])
+
+
+def in_extrema_span(d, span):
+    """True if the prefetched events bracket every slot of date d."""
+    if not span:
+        return False
+    day0 = datetime(d.year, d.month, d.day)
+    return span[0] <= day0 and day0 + timedelta(days=1) <= span[1]
 
 
 def fetch_day(day, out_path):
@@ -74,10 +96,13 @@ def live(days_ahead):
     today = date.today()
     wanted = [today + timedelta(days=n) for n in range(-1, days_ahead + 1)]
 
+    span = extrema_span()
     todo = [d for d in wanted
-            if not os.path.exists(f"{LIVE}/lb_{d.isoformat()}.json")]
-    print(f"live window {wanted[0]} .. {wanted[-1]}: "
-          f"{len(wanted)} days, {len(todo)} to fetch")
+            if not os.path.exists(f"{LIVE}/lb_{d.isoformat()}.json")
+            and not in_extrema_span(d, span)]
+    print(f"live window {wanted[0]} .. {wanted[-1]}: {len(wanted)} days, "
+          f"{len(todo)} to fetch"
+          + (f" (extrema cover to {span[1]:%Y-%m-%d})" if span else ""))
 
     for i, d in enumerate(todo, 1):
         n = fetch_day(d, f"{LIVE}/lb_{d.isoformat()}.json")
@@ -98,12 +123,15 @@ def live(days_ahead):
 
 
 def uncovered(today, days_ahead):
-    """Days in the next `days_ahead` not covered by their own file or their
-    predecessor's (each file carries ~2 days of minutes)."""
+    """Days in the next `days_ahead` not covered by the prefetched extrema,
+    their own minute file, or their predecessor's (each file carries ~2 days
+    of minutes)."""
     have = {os.path.basename(p)[3:13] for p in glob.glob(f"{LIVE}/lb_*.json")}
+    span = extrema_span()
     return len(have), [d for d in (today + timedelta(days=n)
                                    for n in range(days_ahead))
-                       if d.isoformat() not in have
+                       if not in_extrema_span(d, span)
+                       and d.isoformat() not in have
                        and (d - timedelta(days=1)).isoformat() not in have]
 
 
@@ -112,8 +140,10 @@ def report_coverage(today, strict=False):
     or below MIN_DAYS_AHEAD when strict (the tide-horizon-watch job)."""
     nfiles, missing = uncovered(today, MIN_DAYS_AHEAD)
     _, missing_hard = uncovered(today, MIN_DAYS_HARD)
-    print(f"coverage: {nfiles} files on disk, "
-          f"{len(missing)} uncovered days in the next {MIN_DAYS_AHEAD}")
+    span = extrema_span()
+    print(f"coverage: {nfiles} minute files, extrema "
+          + (f"to {span[1]:%Y-%m-%d}" if span else "ABSENT")
+          + f", {len(missing)} uncovered days in the next {MIN_DAYS_AHEAD}")
     if missing_hard:
         print(f"COVERAGE GATE FAILED (hard, <{MIN_DAYS_HARD} d) — "
               f"first uncovered day: {missing_hard[0]}")

@@ -28,7 +28,7 @@ import json
 import math
 from datetime import datetime, timedelta
 
-from tideway_lib import (load_listing, find_extrema, to_putney,
+from tideway_lib import (load_lb_extrema, to_putney,
                          load_wind, wind_at, ang_diff, bearing_deg,
                          HW_AMBER_M, HW_RED_M)
 
@@ -116,7 +116,7 @@ def load_events_and_wind():
              glob.glob("raw/tides/lb_*.json") + glob.glob("../lb_days/lb_*.json")
              + glob.glob("data/tides/lb_*.json")
              if "fresh" not in p and "test" not in p]
-    pev = to_putney(find_extrema(load_listing(paths)))
+    pev = to_putney(load_lb_extrema(paths))
     wind = {}
     for pt in ("putney", "barnes"):
         series = {}
