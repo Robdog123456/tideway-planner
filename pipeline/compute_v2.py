@@ -379,6 +379,43 @@ def check():
     return tide_diffs == 0 and wind_diffs == 0
 
 
+# ------------------------------------------------------------- surge notes
+# Display-only: EA observed-vs-predicted delta (fetch_flag.py writes
+# flag.surge) becomes a notes fragment on near-term slots. Injected AFTER
+# build() so every scored/gated output is byte-identical (--check exits
+# before build is ever called). Thresholds sit against the calibration's
+# 10 cm monthly RMS (which contains real weather-driven variation):
+# 0.20 = ~2 sigma (genuinely unusual), 0.30 = ~3 sigma and the level the
+# EA/Thames Barrier operations treat as a significant positive surge.
+SURGE_NOTE_M = 0.20    # |delta| >= this -> note fragment appears
+SURGE_STRONG_M = 0.30  # positive delta >= this -> embankment wording
+SURGE_STALE_H = 12     # drop the note when the EA snapshot is older
+
+
+def apply_surge_notes(out):
+    """Append a surge fragment to today's + tomorrow's slot notes."""
+    flag = out.get("flag") or {}
+    surge = flag.get("surge") or {}
+    d = surge.get("delta_m")
+    if d is None:
+        return
+    try:
+        fetched = datetime.fromisoformat(flag["fetched"][:19])
+    except (KeyError, ValueError):
+        return
+    if (datetime.now() - fetched).total_seconds() / 3600 >= SURGE_STALE_H:
+        return
+    if abs(d) < SURGE_NOTE_M:
+        return
+    frag = (f"surge {d:+.1f} m — embankment risk raised (EA gauge)"
+            if d >= SURGE_STRONG_M
+            else f"river {d:+.1f} m vs normal (EA gauge)")
+    for day in sorted(out["grid"])[:2]:
+        for row in out["grid"][day]:
+            row["notes"] = (f"{row['notes']}; {frag}"
+                            if row.get("notes") else frag)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", type=str, default=None)
@@ -391,6 +428,7 @@ if __name__ == "__main__":
         raise SystemExit(0 if ok else 1)
     start = date.fromisoformat(a.start) if a.start else date.today()
     out = build(start, a.days)
+    apply_surge_notes(out)
     with open(a.out, "w") as f:
         json.dump(out, f, separators=(",", ":"))   # minified — jq to inspect
     ndays = len([k for k, v in out["grid"].items() if v])

@@ -13,9 +13,11 @@ Richmond level — on an iPhone home screen, correct unattended for a month+.
 ```
 every 6 h (GitHub Actions, build.yml)
   fetch_tides.py --live   tide horizon check (data/tides_extrema.json — a YEAR
-                          of PLA London Bridge HW/LW events, prefetched monthly
-                          on my Mac by prefetch_tides.py; PLA 403s runner IPs,
-                          and predictions are astronomy — CI fetches nothing)
+                          of PLA London Bridge HW/LW events via prefetch_tides.py;
+                          PLA serves runners a Cloudflare JS challenge, and
+                          predictions are astronomy — CI fetches nothing; the
+                          year is topped up by an ANNUAL manual mac_tide_push.sh
+                          run when the tide-horizon-watch email fires)
   fetch_wind.py  --live   Open-Meteo 14 d forecast + 40-member ICON ensemble
   fetch_flag.py           EA Richmond gauge → computed ebb-tide flag snapshot
   compute_v2.py --check   GATE: calibrated v1 lights must reproduce exactly
@@ -86,7 +88,7 @@ CI runs the `--check` half on every scheduled build.
 | Symptom | Meaning | What to do |
 |---|---|---|
 | Email: "build-grid workflow failed" | A fetch or gate failed. The site keeps serving the **last good grid** — nothing is broken for the user. | Open the Actions tab → the failed run → read which step went red. One-off (API blip): ignore, next run self-heals. Persistent: see below. |
-| `tide-horizon-watch` job red | The prefetched tide horizon has shrunk under 28 d — the Mac's monthly refresh (launchd `com.tideway.tides`) hasn't pushed for ~11 months, or PLA changed the endpoint | Deploy is NOT blocked; the app stays correct until the horizon actually runs out. Run `scripts/mac_tide_push.sh` by hand; if PLA changed, fix `fetch_gauge`, run the gates, push. |
+| `tide-horizon-watch` job red | The prefetched tide horizon has shrunk under 28 d — the annual refresh is due (~11 months since the last one), or PLA changed the endpoint | Deploy is NOT blocked; the app stays correct until the horizon actually runs out. Run `scripts/mac_tide_push.sh` from home wifi (never a VPN/datacenter); if PLA changed, fix `fetch_gauge`, run the gates, push. |
 | Wind step failing repeatedly | Open-Meteo outage/URL change | Grid keeps publishing? No — wind failure fails the run by design; last grid serves. Wind older than ~13 h shows the staleness banner in-app. |
 | App shows "grid is N h old" banner | Two+ runs missed | Check the Actions tab; run **Run workflow** by hand (workflow_dispatch). |
 | Flag panel says "snapshot" | Phone can't reach the EA API | Fine — it falls back to the pipeline's snapshot automatically. |

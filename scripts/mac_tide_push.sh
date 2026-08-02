@@ -1,16 +1,19 @@
 #!/bin/bash
-# mac_tide_push — monthly tide-horizon refresh from a residential IP.
+# mac_tide_push — ANNUAL tide-horizon refresh from a residential IP.
 #
-# PLA's bot-wall 403s GitHub-runner IPs (since 2026-07-31), but its tide
-# predictions are astronomy: stable and byte-identical on re-pull. So the
-# app's tide backend is data/tides_extrema.json — a year of London Bridge
-# HW/LW events distilled from PLA's own minute predictions by
-# pipeline/prefetch_tides.py, which needs a residential egress and is run
-# here, monthly, by launchd (com.tideway.tides; log:
-# ~/Library/Logs/tideway-tides.log). Each run tops the horizon back up to
-# ~370 days (only new tail days are fetched — the scratch cache resumes),
-# re-verifies against the committed minute cache, pushes, and kicks a
-# rebuild. CI itself never fetches tides. Safe to run by hand any time.
+# PLA serves GitHub runners a Cloudflare JS challenge (ASN policy, probed
+# 2026-08-02 — .github/workflows/pla-probe.yml, all client shapes 403),
+# but its tide predictions are astronomy: stable and byte-identical on
+# re-pull. So the app's tide backend is data/tides_extrema.json — a year
+# of London Bridge HW/LW events distilled from PLA's own minute
+# predictions by pipeline/prefetch_tides.py, which needs a residential
+# egress. Run this BY HAND, about once a year, when the
+# tide-horizon-watch job starts emailing (horizon < 28 d — you'll have a
+# month of runway left). Only new tail days are fetched (the scratch
+# cache resumes); it re-verifies against the committed cache, pushes,
+# and kicks a rebuild. CI itself never fetches tides. Pace yourself:
+# ~370 fresh days in one sitting can trip PLA's rate limiter even on a
+# home IP (observed 2026-08-02) — the script's retries handle it.
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"   # gh under launchd
 

@@ -10,14 +10,19 @@
 #     stays live, and GitHub emails Rob about the failed workflow;
 #   - tides come from data/tides_extrema.json: a YEAR of London Bridge
 #     HW/LW events distilled from PLA's own minute predictions (astronomy —
-#     stable, byte-identical on re-pull) by pipeline/prefetch_tides.py,
-#     refreshed monthly from Rob's Mac (scripts/mac_tide_push.sh, launchd
-#     com.tideway.tides) because PLA 403s GitHub-runner IPs since
-#     2026-07-31. CI fetches NO tide data; fetch_tides just prunes the
-#     vestigial minute cache and reports coverage. It hard-fails only under
-#     7 d of horizon, and the tide-horizon-watch job reddens the run
-#     (→ email) under 28 d WITHOUT blocking deploy — ~11 months of missed
-#     refreshes before that can even happen;
+#     stable, byte-identical on re-pull) by pipeline/prefetch_tides.py.
+#     PLA serves runners a Cloudflare JS challenge (probed 2026-08-02,
+#     .github/workflows/pla-probe.yml: all client shapes 403, homepage
+#     included — ASN policy, unfixable from CI), so the refresh is an
+#     ANNUAL manual run of scripts/mac_tide_push.sh from any residential
+#     connection, prompted by the tide-horizon-watch email. CI fetches NO
+#     tide data; fetch_tides just prunes the vestigial minute cache and
+#     reports coverage. It hard-fails only under 7 d of horizon, and
+#     tide-horizon-watch reddens the run (→ email) under 28 d WITHOUT
+#     blocking deploy — ~11 months of runway before that can happen;
+#   - LIVE data every run regardless of tides: wind (Open-Meteo), and the
+#     EA Richmond gauge — ebb-flag plus the surge nowcast (observed HW
+#     peak vs predicted, flag.surge -> display-only slot notes);
 #   - the data commit each run doubles as the keepalive that stops GitHub
 #     disabling the schedule after 60 days of repo inactivity.
 
