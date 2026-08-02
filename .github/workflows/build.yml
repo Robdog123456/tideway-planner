@@ -25,7 +25,11 @@ name: build-grid
 
 on:
   schedule:
-    - cron: "17 2,8,14,20 * * *"   # UTC; offset minute dodges cron congestion
+    - cron: "17 2,8,14,20 * * *"   # rebuild-only runs (UTC; offset minute dodges congestion)
+    - cron: "3 3,11 * * *"         # tide-call window: ~04:03/12:03 BST (03:03/11:03 GMT).
+                                   # Only these runs (and manual dispatches) may make
+                                   # tide-SOURCE calls — rate-sensitive external tide APIs.
+                                   # Wind/EA/grid/deploy run on every schedule.
   workflow_dispatch:
 
 permissions:
@@ -37,6 +41,9 @@ concurrency: build-grid
 
 env:
   TZ: Europe/London   # the model thinks in London wall-clock everywhere
+  # true on the 2/day tide-call cron and on manual dispatches; steps that call
+  # rate-sensitive tide sources must gate on this (Rob's conservative-calls rule)
+  TIDE_CALL_WINDOW: ${{ github.event.schedule == '3 3,11 * * *' || github.event_name == 'workflow_dispatch' }}
 
 jobs:
   build:
