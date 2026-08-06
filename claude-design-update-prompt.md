@@ -165,6 +165,73 @@ interaction; FIELDS READ unchanged) — same handover rules as before.
 ---
 ---
 
+# FOLLOW-UP #2 (2026-08-06) — the shallows have their own clocks now
+
+The model grew a per-reach LOW-WATER layer. Until now the tide light only knew
+Putney's LW clock — but low water arrives ~20 min LATER at Kew than at Putney
+(measured from PLA predictions), and the upstream reaches shoal out while the
+deep lower river stays rowable. The pipeline now knows exactly when each reach
+shuts and reopens around every low water, and it scores the fallback I actually
+row on those days: lapping the lower river. The app needs to SAY all this.
+Same rule as ever: **this is NOT a redesign** — same ring, same tabs, same
+voice; the JSON stays the single source of truth, nothing is re-modelled in JS.
+
+**DATA CONTRACT ADDITIONS (the attached grid_v2.json is a real current one):**
+
+- `sessions` now has a SIXTH entry, first in river order: `"Putney loop"` —
+  not an out-and-back but ~an hour of laps in the deep water below
+  Hammersmith (duration_min ~74–80). Render it as a chip like the others;
+  it is the fallback that often stays "Row (care)" when everything upstream
+  is shut.
+- Any sessions entry may now carry `lw_transit` ("AMBER"|"RED") +
+  `lw_reach` ("corney"|"mortlake"|"kew"|"syon") — meaning that session
+  would put me IN that reach while it's too close to ITS OWN low water
+  (shoals). This is a DIFFERENT blocker than wind: when a chip is blocked
+  and `lw_transit` is present, sub-label it with the shallow-water story
+  ("shallows @ kew"), not the wind story. `worst_light`/`worst_reach`
+  remain the WIND story, unchanged.
+- NEW top level: `reach_windows` — per date, per shoal reach, the closed
+  window around each low water:
+  `{"2026-08-08": {"kew": [{lw:"05:58", closes:"04:18", reopens:"06:48"},
+  {lw:"18:33", closes:"16:53", reopens:"19:23"}], "corney": …}}`.
+  putney/st_pauls never appear — the lower river doesn't shoal; that is the
+  point of the loop. (A pre-dawn window's `closes` can be before midnight —
+  the 04:30–20:30 slot day makes that edge cosmetic; clamp the display to
+  the day.)
+
+**DISPLAY — two additions in the existing visual language:**
+
+1. **SHALLOWS strip on the Day view** (near the tide curve / windows chips,
+   your placement): the day's closed windows, compact —
+   "SHALLOWS · KEW SHUT 16:53–19:23 · CORNEY 17:00–19:30" — collapsed to the
+   outermost span when the four reaches overlap (they always nearly do; Kew
+   shuts first, reopens with the young flood). When no window touches
+   04:30–20:30: "UPSTREAM OPEN ALL DAY". This is the panel that answers
+   "if I go now, will Kew still be there when I arrive."
+2. **The fallback story.** When `best_turn` is short water (or null) while
+   `"Putney loop"` is rowable, the sessions card / hero sub-line should say
+   it plainly: "shallows upstream — loop the lower river". The chips make it
+   visible; one line of copy makes it a plan.
+
+**SANITY CHECKS (against the attached grid — today is 2026-08-06):**
+
+- 7 Aug, tap 14:30: Kew chip "Don't row" sub-labelled shallows @ corney
+  (`lw_transit:"RED"`), Putney loop "Row (care)" 78 min, best turn
+  CHISWICK BR — the card shows the gradient, not just a wall of red.
+- 9 Aug, tap 17:30: Kew "Don't row" shallows @ kew, best turn ULBC.
+- 8 Aug SHALLOWS strip: KEW 04:18–06:48 & 16:53–19:23, CORNEY 04:25–06:55 &
+  17:00–19:30 (collapse as you see fit).
+- 7 Aug 07:00: everything open, best turn KEW — strip and chips must not cry
+  wolf when the river is open.
+- The `Putney loop` chip appears on every wind-known slot, first in order.
+
+**Delivery:** full re-export, same handover rules; FIELDS READ gains
+`sessions["Putney loop"]`, `sessions.*.lw_transit`, `sessions.*.lw_reach`,
+`reach_windows`; CHANGELOG gets the shallows strip + fallback line.
+
+---
+---
+
 # THE HANDOVER — paste this as the FINAL message once the design is settled
 # (Claude Code integrates the file into an existing PWA wrapper — service
 # worker, manifest, icons, GitHub Pages deploy — and runs acceptance tests
