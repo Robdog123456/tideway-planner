@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from tideway_lib import (load_lb_extrema, to_putney,
                          load_wind, wind_at, ang_diff, bearing_deg,
-                         HW_AMBER_M, HW_RED_M)
+                         HW_AMBER_M, HW_RED_M, local_lw_extra_min)
 
 
 def fast_wind_at(series_and_index, dt):
@@ -54,9 +54,30 @@ V_ROB = 3.3               # m/s through-the-water default (median session V)
 WIND_GREEN, WIND_AMBER, GUST_RED = 8, 13, 32
 WOT_MIN_SPD, WOT_ANGLE = 6, 50
 STREAM_MIN_MPS = 0.15     # stream counted as "running" for WoT
-TURN_MENU = [(3010, "Hammersmith"), (4633, "Corney"), (6200, "ULBC"),
-             (7390, "Chiswick Br"), (9085, "Kew")]
+TURN_MENU = [(2000, "Putney loop"), (3010, "Hammersmith"), (4633, "Corney"),
+             (6200, "ULBC"), (7390, "Chiswick Br"), (9085, "Kew")]
+LOOP_TURNS = {"Putney loop"}   # bounce 0<->turn until duration_s is spent
 STEP_S = 120              # simulation step
+
+# Per-reach LOW-WATER TRANSIT bands, minutes relative to the REACH-LOCAL LW
+# clock (Putney LW + local_lw_extra_min). Calibrated 2026-08-06 from the 235
+# GPS reach-passes (derive_reach_bands.py) in the HW-gate's "beyond anything
+# ever rowed" spirit: RED spans the never-transited gap around local LW with
+# a 5 min credit inside each proven closest approach; AMBER is a 15-20 min
+# approach shoulder. putney/st_pauls carry NO transit band — their envelope
+# gap is the shadow of the club LAUNCH band, not a depth signal (LRC hard
+# afloat at 0.67 m; deep fairway) — so looping the lower river through LW
+# stays open while the upstream shoal reaches (Code-cited: Corney, Kew) shut.
+# syon has no near-LW observations: band extrapolated one step past kew's,
+# most conservative. Envelope evidence: corney -90/+70, mortlake -98/+60,
+# kew -105/+55 (closest transits before/after local LW).
+REACH_LW_BANDS = {
+    #            RED_lo RED_hi  AMBER_lo AMBER_hi
+    "corney":   (-85,   65,     -105,    80),
+    "mortlake": (-93,   55,     -113,    70),
+    "kew":      (-100,  50,     -120,    65),
+    "syon":     (-110,  50,     -130,    65),
+}
 
 
 # ------------------------------------------------------------------ loading
@@ -180,10 +201,37 @@ def tide_light_at(pev, dt):
 LIGHT_RANK = {"GREEN": 0, "AMBER": 1, "RED": 2}
 
 
+def lw_transit_light(pev, dt, reach):
+    """Low-water TRANSIT light for being IN a reach at dt, judged on the
+    reach-local LW clock. None when the reach carries no transit band."""
+    band = REACH_LW_BANDS.get(reach["name"])
+    if band is None:
+        return None
+    best = None
+    for edt, h, typ in pev:
+        if typ != "LW":
+            continue
+        d = (dt - edt).total_seconds() / 60.0
+        if best is None or abs(d) < abs(best):
+            best = d
+    if best is None:
+        return None
+    mid = (reach["from_m"] + reach["to_m"]) / 2.0
+    m = best - local_lw_extra_min(mid)      # minutes vs LOCAL LW
+    red_lo, red_hi, amb_lo, amb_hi = band
+    if red_lo <= m <= red_hi:
+        return "RED"
+    if amb_lo <= m <= amb_hi:
+        return "AMBER"
+    return "GREEN"
+
+
 # ----------------------------------------------------------------- simulate
 def simulate(pev, wind, curves, reaches, t0, turn_chain=None, duration_s=None,
-             v_rob=V_ROB):
-    """Integrate the out-and-back. Returns dict with samples + worst light."""
+             v_rob=V_ROB, loop=False):
+    """Integrate the out-and-back (or, with loop=True, laps between the
+    embankment and turn_chain until duration_s). Returns dict with samples
+    + worst light."""
     def reach_of(c):
         for r in reaches:
             if r["from_m"] <= c <= r["to_m"]:
@@ -193,6 +241,7 @@ def simulate(pev, wind, curves, reaches, t0, turn_chain=None, duration_s=None,
     t, c, direction = t0, 0.0, +1
     samples = []
     worst = ("GREEN", None, None)
+    worst_lw = ("GREEN", None, None)
     while True:
         el = (t - t0).total_seconds()
         if el > 3.5 * 3600:
@@ -215,17 +264,29 @@ def simulate(pev, wind, curves, reaches, t0, turn_chain=None, duration_s=None,
             light = "RED"
         if wot and spd >= WIND_AMBER and light == "AMBER":
             light = "RED"
+        lwt = lw_transit_light(pev, t, r)
         samples.append({"t": t.strftime("%H:%M"), "chain_m": round(c),
                         "reach": r["name"], "dir": "up" if direction > 0 else "down",
                         "stream_mps": round(s, 2), "wind_mph": round(spd, 1),
-                        "wind_dir": round(wdir), "wot": wot, "light": light})
+                        "wind_dir": round(wdir), "wot": wot, "light": light,
+                        **({"lw": lwt} if lwt and lwt != "GREEN" else {})})
         if LIGHT_RANK[light] > LIGHT_RANK[worst[0]]:
             worst = (light, r["name"], t.strftime("%H:%M"))
+        if lwt and LIGHT_RANK[lwt] > LIGHT_RANK[worst_lw[0]]:
+            worst_lw = (lwt, r["name"], t.strftime("%H:%M"))
 
         # advance
         c += direction * sog * STEP_S
         t += timedelta(seconds=STEP_S)
-        if direction > 0:
+        if loop:
+            # lap the lower river: bounce 0 <-> turn_chain until duration_s
+            if direction > 0 and turn_chain is not None and c >= turn_chain:
+                direction = -1
+            elif direction < 0 and c <= 0:
+                if duration_s is None or el >= duration_s:
+                    break
+                direction, c = +1, 0.0
+        elif direction > 0:
             hit_turn = (turn_chain is not None and c >= turn_chain) or \
                        (duration_s is not None and el >= duration_s / 2)
             if hit_turn:
@@ -248,15 +309,20 @@ def simulate(pev, wind, curves, reaches, t0, turn_chain=None, duration_s=None,
     gates = {"lw_launch": tl0, "lw_land": tl1,
              "hw_launch": hw_tier(h0), "hw_land": hw_tier(h1),
              "h_launch_m": round(h0, 2) if h0 else None,
-             "h_land_m": round(h1, 2) if h1 else None}
+             "h_land_m": round(h1, 2) if h1 else None,
+             "lw_transit": worst_lw[0], "lw_transit_reach": worst_lw[1],
+             "lw_transit_at": worst_lw[2]}
 
-    gate_lights = [g for g in (tl0, tl1, gates["hw_launch"], gates["hw_land"]) if g]
+    gate_lights = [g for g in (tl0, tl1, gates["hw_launch"], gates["hw_land"],
+                               worst_lw[0]) if g]
     overall_rank = max([LIGHT_RANK[worst[0]]] +
                        [LIGHT_RANK[g] for g in gate_lights])
     verdict = ["Row", "Row (care)", "Don't row"][overall_rank]
     return {"launch": t0.strftime("%H:%M"), "duration_min": round(dur_min),
             "max_chain_m": max_chain, "verdict": verdict,
             "worst": {"light": worst[0], "reach": worst[1], "at": worst[2]},
+            "worst_lw": {"light": worst_lw[0], "reach": worst_lw[1],
+                         "at": worst_lw[2]},
             "gates": gates, "samples": samples}
 
 
@@ -283,6 +349,10 @@ def backtest():
             flags.append("HW-RED")
         if g["hw_launch"] == "AMBER" or g["hw_land"] == "AMBER":
             flags.append("HW-amber")
+        if g["lw_transit"] == "RED":
+            flags.append(f"LW-transit-RED({g['lw_transit_reach']})")
+        elif g["lw_transit"] == "AMBER":
+            flags.append(f"LW-transit-amber({g['lw_transit_reach']})")
         if sim["worst"]["light"] == "RED":
             flags.append("wind-RED")
         results.append((r, sim, flags))
@@ -293,8 +363,12 @@ def backtest():
               f"{','.join(flags) or '-'}")
 
     n = len(results)
+    # "policy-only": every RED-tier cause is the LW club band. AMBER-tier
+    # flags (HW-amber, LW-transit-amber) are informational — rank 1 cannot
+    # produce a Don't row — so they don't disqualify.
+    reds = lambda f: [x for x in f if "amber" not in x]
     ok = sum(1 for _, s, f in results
-             if s["verdict"] != "Don't row" or f == ["LW-band(policy)"])
+             if s["verdict"] != "Don't row" or reds(f) == ["LW-band(policy)"])
     windred = sum(1 for _, s, _ in results if s["worst"]["light"] == "RED")
     lwpol = sum(1 for _, _, f in results if "LW-band(policy)" in f)
     hwred = sum(1 for _, _, f in results if "HW-RED" in f)

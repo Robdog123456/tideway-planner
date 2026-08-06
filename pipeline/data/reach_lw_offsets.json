@@ -1,0 +1,197 @@
+{
+ "derived": "2026-08-06T19:52:04",
+ "method": "PLA minute predictions LB vs Richmond, find_extrema, paired same-type events; spring/neap/mid days",
+ "days": {
+  "spring": "2026-08-14",
+  "neap": "2026-08-23",
+  "mid": "2026-08-26"
+ },
+ "richmond_chainage_m_est": 13071,
+ "putney_offset_vs_lb_min": {
+  "LW": 98,
+  "HW": 31
+ },
+ "richmond_offset_vs_lb_min": {
+  "LW": 134.0,
+  "HW": 58.0,
+  "lw_samples_all": [
+   33.0,
+   49.0,
+   63.0,
+   79.0,
+   123.0,
+   130.0,
+   133.0,
+   134.0,
+   153.0,
+   171.0
+  ],
+  "lw_samples_natural": [
+   123.0,
+   130.0,
+   133.0,
+   134.0,
+   153.0,
+   171.0
+  ],
+  "hw_samples": [
+   51.0,
+   55.0,
+   56.0,
+   56.0,
+   58.0,
+   58.0,
+   59.0,
+   59.0,
+   60.0,
+   65.0,
+   69.0
+  ],
+  "lw_note": "samples <100 min excluded: Richmond Lock half-tide hold flattens neap troughs (see lw_shape_check)"
+ },
+ "lw_slope_min_per_m": 0.002754,
+ "per_day": {
+  "spring": {
+   "day": "2026-08-14",
+   "lw_offset_min": [
+    123.0,
+    171.0,
+    130.0
+   ],
+   "hw_offset_min": [
+    59.0,
+    55.0,
+    59.0,
+    58.0
+   ]
+  },
+  "neap": {
+   "day": "2026-08-23",
+   "lw_offset_min": [
+    79.0,
+    63.0,
+    49.0,
+    33.0
+   ],
+   "hw_offset_min": [
+    69.0,
+    60.0,
+    51.0
+   ]
+  },
+  "mid": {
+   "day": "2026-08-26",
+   "lw_offset_min": [
+    133.0,
+    153.0,
+    134.0
+   ],
+   "hw_offset_min": [
+    65.0,
+    58.0,
+    56.0,
+    56.0
+   ]
+  },
+  "chelsea_check": {
+   "day": "2026-08-26",
+   "lw_offset_min": [
+    35.0,
+    41.0,
+    39.0,
+    40.0
+   ],
+   "hw_offset_min": [
+    18.0,
+    18.0,
+    15.0,
+    23.0
+   ]
+  }
+ },
+ "lw_shape_check": {
+  "richmond_spring": [
+   {
+    "t": "08-14 01:58",
+    "rise_before_cm": 17,
+    "rise_after_cm": 18
+   },
+   {
+    "t": "08-14 13:23",
+    "rise_before_cm": 3,
+    "rise_after_cm": 0
+   },
+   {
+    "t": "08-15 02:45",
+    "rise_before_cm": 19,
+    "rise_after_cm": 20
+   },
+   {
+    "t": "08-15 14:10",
+    "rise_before_cm": 5,
+    "rise_after_cm": 2
+   }
+  ],
+  "richmond_neap": [
+   {
+    "t": "08-23 06:13",
+    "rise_before_cm": 9,
+    "rise_after_cm": 3
+   },
+   {
+    "t": "08-23 18:49",
+    "rise_before_cm": 8,
+    "rise_after_cm": 7
+   },
+   {
+    "t": "08-24 07:16",
+    "rise_before_cm": 10,
+    "rise_after_cm": 1
+   },
+   {
+    "t": "08-24 19:43",
+    "rise_before_cm": 12,
+    "rise_after_cm": 2
+   }
+  ],
+  "richmond_mid": [
+   {
+    "t": "08-26 10:55",
+    "rise_before_cm": 9,
+    "rise_after_cm": 3
+   },
+   {
+    "t": "08-26 23:38",
+    "rise_before_cm": 5,
+    "rise_after_cm": 5
+   },
+   {
+    "t": "08-27 11:44",
+    "rise_before_cm": 7,
+    "rise_after_cm": 2
+   }
+  ],
+  "chelsea_mid": [
+   {
+    "t": "08-26 09:17",
+    "rise_before_cm": 14,
+    "rise_after_cm": 7
+   },
+   {
+    "t": "08-26 21:46",
+    "rise_before_cm": 16,
+    "rise_after_cm": 6
+   },
+   {
+    "t": "08-27 10:09",
+    "rise_before_cm": 16,
+    "rise_after_cm": 12
+   },
+   {
+    "t": "08-27 22:36",
+    "rise_before_cm": 19,
+    "rise_after_cm": 9
+   }
+  ]
+ }
+}

@@ -30,6 +30,20 @@ GAUGES = {"london_bridge": "0113", "chelsea": "0113A", "richmond": "0116"}
 PUTNEY_HW = (31, -1.0)   # minutes, metres
 PUTNEY_LW = (98, -0.5)
 
+# LW propagation up the corridor (derive_reach_lw.py, 2026-08-06): natural LW
+# at Richmond Lock = LB +134 min vs Putney's +98, over ~13.07 km of river —
+# neap samples excluded (the half-tide sluices flatten the trough and corrupt
+# the timing; see data/reach_lw_offsets.json lw_shape_check). Kew-end effect
+# ~+22 min after Putney LW; estimate uncertainty ~+-10 min at the top.
+RICHMOND_LW_OFFSET_MIN = 134          # vs London Bridge
+RICHMOND_CHAINAGE_M = 13071           # Putney-origin, +10% sinuosity est.
+LW_SLOPE_MIN_PER_M = (RICHMOND_LW_OFFSET_MIN - PUTNEY_LW[0]) / RICHMOND_CHAINAGE_M
+
+
+def local_lw_extra_min(chain_m):
+    """Minutes AFTER Putney LW that LW occurs at model chainage chain_m."""
+    return chain_m * LW_SLOPE_MIN_PER_M
+
 # Putney Embankment high-water gate (launch/landing only — being afloat
 # through HW is unaffected). Metres above chart datum AT PUTNEY.
 # Two-tier, confirmed by Rob 2026-07-20:

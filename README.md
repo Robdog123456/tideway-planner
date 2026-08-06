@@ -46,6 +46,18 @@ Two honesty rules are load-bearing:
 - v2 session layer (`session_model.py`): the boat is simulated through six
   reaches (axes 338°→231°); wind-over-tide fires per reach; stream fitted
   from GPS. Backtest: 29/29 real sessions rowable-or-policy-only.
+- v2.1 per-reach LOW-WATER layer (2026-08-06): LW arrives later upstream
+  (LB→Richmond natural LW +134 min vs Putney's +98, PLA-derived —
+  `derive_reach_lw.py`; neap samples excluded, the half-tide lock flattens
+  the trough), so each shoal reach runs on its own LW clock. Transit bands
+  (corney/mortlake/kew/syon) are calibrated from the 235 GPS reach-passes
+  in the HW-gate's "beyond anything ever rowed" spirit
+  (`derive_reach_bands.py`; provenance `data/reach_lw_offsets.json`).
+  putney/st_pauls carry NO transit band — their envelope gap is the club
+  launch band's shadow, not a depth signal — so looping the deep lower
+  river through LW stays open while Kew is shut. The grid gains
+  `reach_windows` (per-day closes/reopens per reach) and a lapped
+  "Putney loop" turn option; session verdicts gain the `lw_transit` gate.
 - Embankment gate, two-tier at Putney (launch/landing only): AMBER ≥ 5.90 m
   (road may flood, wet feet), RED ≥ 6.30 m (above max ever boated). Shared
   constant in `tideway_lib.py`.

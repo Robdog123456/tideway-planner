@@ -32,7 +32,7 @@ from datetime import datetime, timedelta, date
 
 from tideway_lib import (load_lb_extrema, to_putney,
                          load_wind, wind_at, ang_diff,
-                         HW_AMBER_M, HW_RED_M)
+                         HW_AMBER_M, HW_RED_M, local_lw_extra_min)
 
 # ------------------------------------------------------------- configuration
 # v1 calibrated values — DO NOT CHANGE without re-running the backtest.
@@ -254,6 +254,31 @@ def window_confidence(ens, t0, t1):
 
 
 # ------------------------------------------------------------------- build
+def reach_windows(pev, reaches, bands, start, days):
+    """Per day, per banded reach: the RED closed window around each LOCAL LW
+    (Putney LW + propagation lag). Windows are keyed by the day the local LW
+    falls on; closes/reopens are wall-clock HH:MM (a pre-dawn window's
+    'closes' can precede midnight — the 04:30-20:30 slot day makes this
+    edge cosmetic)."""
+    out = {}
+    mids = {r["name"]: (r["from_m"] + r["to_m"]) / 2 for r in reaches}
+    for e_dt, h, typ in pev:
+        if typ != "LW":
+            continue
+        for name, (red_lo, red_hi, _a, _b) in bands.items():
+            if name not in mids:
+                continue
+            local = e_dt + timedelta(minutes=local_lw_extra_min(mids[name]))
+            day = local.date()
+            if not (start <= day < start + timedelta(days=days)):
+                continue
+            out.setdefault(day.isoformat(), {}).setdefault(name, []).append(
+                {"lw": local.strftime("%H:%M"),
+                 "closes": (local + timedelta(minutes=red_lo)).strftime("%H:%M"),
+                 "reopens": (local + timedelta(minutes=red_hi)).strftime("%H:%M")})
+    return out
+
+
 def load_session_layer():
     """Layer 2 (per-reach session simulator) if its inputs exist on disk."""
     if not (os.path.exists("reaches.json") and os.path.exists("stream_model.json")):
@@ -300,14 +325,26 @@ def build(start, days, wind_file=None, with_sessions=True):
                 sessions = {}
                 best = None
                 for turn_c, name in sm.TURN_MENU:
-                    sim = sm.simulate(L2["pev"], L2["wind"], L2["curves"],
-                                      L2["reaches"], dt, turn_chain=turn_c)
-                    sessions[name] = {
+                    if name in sm.LOOP_TURNS:
+                        # laps of the deep lower river for an hour — the
+                        # fallback when the upstream reaches are shut
+                        sim = sm.simulate(L2["pev"], L2["wind"], L2["curves"],
+                                          L2["reaches"], dt, turn_chain=turn_c,
+                                          duration_s=3600, loop=True)
+                    else:
+                        sim = sm.simulate(L2["pev"], L2["wind"], L2["curves"],
+                                          L2["reaches"], dt, turn_chain=turn_c)
+                    entry = {
                         "verdict": sim["verdict"],
                         "duration_min": sim["duration_min"],
                         "worst_light": sim["worst"]["light"],
                         "worst_reach": sim["worst"]["reach"],
                     }
+                    lwg = sim["gates"]
+                    if lwg.get("lw_transit") and lwg["lw_transit"] != "GREEN":
+                        entry["lw_transit"] = lwg["lw_transit"]
+                        entry["lw_reach"] = lwg["lw_transit_reach"]
+                    sessions[name] = entry
                     if sim["verdict"] != "Don't row" and sim["duration_min"] <= 135:
                         best = name
                 row["sessions"] = sessions
@@ -340,12 +377,16 @@ def build(start, days, wind_file=None, with_sessions=True):
         with open("data/flag.json") as f:
             flag = json.load(f)
 
+    rw = (reach_windows(pev, L2["reaches"], L2["sm"].REACH_LW_BANDS,
+                        start, days) if L2 else None)
+
     return {"generated": datetime.now().isoformat(timespec="seconds"),
             "model": "v2",
             "hw_gate_putney_m": {"amber": HW_AMBER_M, "red": HW_RED_M},
             "wind_horizon": wind_end.isoformat(timespec="minutes")
                             if wind_end else None,
             "flag": flag,
+            "reach_windows": rw,
             "grid": grid, "putney_hwlw": hwlw}
 
 
