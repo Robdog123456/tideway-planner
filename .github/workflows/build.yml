@@ -119,6 +119,10 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # Pages queue stalls >10 min killed 3 runs on 2026-08-06; default
+          # timeout is 600000 ms — give a stalled queue 20 min to clear.
+          timeout: 1200000
 
   # Reddens the run (→ failure email) when the tide cache covers <28 days,
   # while build+deploy publish off whatever window remains. Runs against the
