@@ -1,9 +1,9 @@
 {
- "fetched": "2026-08-25T21:46:15+01:00",
+ "fetched": "2026-08-26T04:18:29+01:00",
  "station": "EA 0009 Richmond (tidal level, mAOD)",
  "latest": {
-  "time": "2026-08-25T21:15+01:00",
-  "level_m": -0.753
+  "time": "2026-08-26T03:45+01:00",
+  "level_m": 2.693
  },
  "current": {
   "flag": "BLACK",
@@ -13,11 +13,11 @@
  "next": {
   "flag_estimate": "BLACK",
   "at": "2026-08-26T06:00+01:00",
-  "trailing_min_m": -0.753
+  "trailing_min_m": -0.86
  },
  "surge": {
-  "delta_m": -0.13,
-  "trend": "falling",
-  "hw_at": "2026-08-25T13:46"
+  "delta_m": -0.0,
+  "trend": "rising",
+  "hw_at": "2026-08-26T02:22"
  }
 }
