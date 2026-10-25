@@ -1,9 +1,9 @@
 {
- "fetched": "2026-10-25T14:46:25+00:00",
+ "fetched": "2026-10-25T17:39:35+00:00",
  "station": "EA 0009 Richmond (tidal level, mAOD)",
  "latest": {
-  "time": "2026-10-25T14:15+00:00",
-  "level_m": 3.298
+  "time": "2026-10-25T17:15+00:00",
+  "level_m": 0.661
  },
  "current": {
   "flag": "BLACK",
